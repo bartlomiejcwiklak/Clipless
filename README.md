@@ -12,3 +12,6 @@
 
 ### Roadmap:
 - Optimize the clips via compression to easily send them on chat apps like Discord
+
+### Credits:
+This project uses LibVLCSharp by videolan, FFmpeg by ffmpeg and WPF-UI by lepoco.
