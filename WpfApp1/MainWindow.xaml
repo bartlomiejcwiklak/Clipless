@@ -178,9 +178,14 @@
                             <TextBlock x:Name="TxtFoldersArrow" Text="▼ " Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
                             <TextBlock Text="{DynamicResource TxtGameFolders}" Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
                         </StackPanel>
-                        <Button x:Name="BtnCreateFolder" Background="Transparent" Foreground="Gray" BorderThickness="0" Width="28" Height="28" HorizontalAlignment="Right" Click="BtnCreateFolder_Click" ToolTip="{DynamicResource TxtCreateFolder}" Padding="2">
-                            <Image Source="/Images/add.png" Stretch="Uniform" Margin="2" Width="16" Height="16"/>
-                        </Button>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button x:Name="BtnOpenFolder" Background="Transparent" Foreground="Gray" BorderThickness="0" Width="28" Height="28" Click="BtnOpenFolder_Click" ToolTip="Open directory" Padding="2" Margin="0,0,5,0">
+                                <Image Source="/Images/folder.png" Stretch="Uniform" Margin="2" Width="16" Height="16"/>
+                            </Button>
+                            <Button x:Name="BtnCreateFolder" Background="Transparent" Foreground="Gray" BorderThickness="0" Width="28" Height="28" Click="BtnCreateFolder_Click" ToolTip="{DynamicResource TxtCreateFolder}" Padding="2">
+                                <Image Source="/Images/add.png" Stretch="Uniform" Margin="2" Width="16" Height="16"/>
+                            </Button>
+                        </StackPanel>
                     </Grid>
 
                     <ListBox Grid.Row="4" x:Name="GameFolderList" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="GameFolderList_SelectionChanged">

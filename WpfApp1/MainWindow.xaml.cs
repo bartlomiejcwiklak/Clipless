@@ -356,10 +356,13 @@ namespace ClipManager
 
                 if (!File.Exists(ffmpegPath)) return;
 
-                int segmentTime = 5;
+                int fpsInt = _captureFramerate == "30" ? 30 : 60;
+                int segmentTime = 2;
                 int maxSegments = (_bufferMinutes * 60) / segmentTime;
 
-                string encoder = _renderEngine == "GPU" ? "h264_nvenc -preset fast -cq 28" : "libx264 -preset superfast -crf 28";
+                string encoder = _renderEngine == "GPU" 
+                    ? $"h264_nvenc -preset fast -cq 28 -g {fpsInt * segmentTime} -keyint_min {fpsInt * segmentTime} -sc_threshold 0" 
+                    : $"libx264 -preset superfast -crf 28 -g {fpsInt * segmentTime} -keyint_min {fpsInt * segmentTime} -sc_threshold 0";
 
                 var screens = System.Windows.Forms.Screen.AllScreens;
                 int monIndex = _captureMonitorIndex >= 0 && _captureMonitorIndex < screens.Length ? _captureMonitorIndex : 0;
@@ -2213,6 +2216,25 @@ namespace ClipManager
             if (sender is ListBoxItem item)
                 item.IsSelected = true;
         }
+
+        private void BtnOpenFolder_Click(object sender, RoutedEventArgs e)
+        {
+            string pathToOpen = _basePath;
+            if (GameFolderList.SelectedItem is GameFolder f)
+            {
+                pathToOpen = f.FullPath;
+            }
+            if (Directory.Exists(pathToOpen))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo()
+                {
+                    FileName = pathToOpen,
+                    UseShellExecute = true,
+                    Verb = "open"
+                });
+            }
+        }
+
         private enum FolderMode { None, Create, Rename }
         private FolderMode _fMode = FolderMode.None;
         private GameFolder _fRen = null;
