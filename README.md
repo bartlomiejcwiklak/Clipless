@@ -3,14 +3,13 @@
 ## An easy to use clip editor for gaming
 
 ### Features:
-- Trimming a video clip of your gaming moment
+- Trim a video clip of your gaming moment
 - Either replace or create a new video file
+- Optimize the clips to easily send them on chat apps like Discord
 - Manage your clip folders
-- Smooth clip playback
+- Play your clips smoothly
 - Sort your clips by date
 - Available in English and Polish
-- Optimize the clips to easily send them on chat apps like Discord
-- 
 
 ### Credits:
 Made by ohhbaro
