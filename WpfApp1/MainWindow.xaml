@@ -538,6 +538,18 @@
                                         <ComboBox x:Name="AudioInputComboBox" HorizontalAlignment="Stretch" DisplayMemberPath="Name" SelectionChanged="AudioInputComboBox_SelectionChanged" />
                                     </StackPanel>
                                 </Grid>
+
+                                <Grid Margin="0,15,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="Camera" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                                        <ComboBox x:Name="CameraComboBox" HorizontalAlignment="Stretch" DisplayMemberPath="Name" SelectionChanged="CameraComboBox_SelectionChanged" />
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkCameraOverlay" Grid.Column="1" VerticalAlignment="Bottom" Margin="5,0,0,5" Content="Enable Overlay" Foreground="White" Checked="ChkCameraOverlay_Changed" Unchecked="ChkCameraOverlay_Changed"/>
+                                </Grid>
                             </StackPanel>
                         </Border>
 

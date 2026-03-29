@@ -127,6 +127,8 @@ namespace ClipManager
         private string _captureResolution = "Native";
         private string _audioOutputId = "";
         private string _audioInputId = "";
+        private string _cameraId = "";
+        private bool _cameraOverlayEnabled = false;
         private AudioPipeRecorder _audioOutputRecorder;
         private AudioPipeRecorder _audioInputRecorder;
         private bool _actualClose = false;
@@ -267,20 +269,6 @@ namespace ClipManager
 
                     if (currentMods == _hotkeyModifiers)
                     {
-                        try
-                        {
-                            var uri = new Uri("pack://application:,,,/shot.wav");
-                            var streamInfo = System.Windows.Application.GetResourceStream(uri);
-                            if (streamInfo != null)
-                            {
-                                using (var sp = new System.Media.SoundPlayer(streamInfo.Stream))
-                                {
-                                    sp.Play();
-                                }
-                            }
-                        }
-                        catch { }
-
                         string activeGame = GetForegroundProcessName();
 
                         Dispatcher.BeginInvoke(new Action(() => SaveBufferedClip(activeGame)));
@@ -374,13 +362,20 @@ namespace ClipManager
                 h = h % 2 != 0 ? h - 1 : h;
 
                 string fps = _captureFramerate == "30" ? "30" : "60";
-                string scaleFilter = "-vf hwdownload,format=bgra ";
-                if (_captureResolution == "1080p") scaleFilter = "-vf hwdownload,format=bgra,scale=-2:1080 ";
-                else if (_captureResolution == "720p") scaleFilter = "-vf hwdownload,format=bgra,scale=-2:720 ";
+
+                string camInput = "";
+                int currentInputIdx = 1;
+                int camIndexIdx = -1;
+
+                if (_cameraOverlayEnabled && !string.IsNullOrEmpty(_cameraId)) {
+                    camInput = $"-use_wallclock_as_timestamps 1 -thread_queue_size 2048 -f dshow -rtbufsize 2048M -i video=\"{_cameraId}\" ";
+                    camIndexIdx = currentInputIdx++;
+                }
 
                 var enumerator = new MMDeviceEnumerator();
                 string audioInputs = "";
-                int audioCount = 0;
+                int audioOutIdx = -1;
+                int audioInIdx = -1;
 
                 try {
                     if (!string.IsNullOrEmpty(_audioOutputId)) {
@@ -392,7 +387,7 @@ namespace ClipManager
                             _audioOutputRecorder = outRec;
                             _ = outRec.StartAsync(); 
                             audioInputs += $"-use_wallclock_as_timestamps 1 -thread_queue_size 2048 -f {outRec.FFmpegFormat} -ar {outRec.SampleRate} -ac {outRec.Channels} -i \\\\.\\pipe\\{outRec.PipeName} ";
-                            audioCount++;
+                            audioOutIdx = currentInputIdx++;
                         }
                     }
                 } catch { }
@@ -407,25 +402,46 @@ namespace ClipManager
                             _audioInputRecorder = inRec;
                             _ = inRec.StartAsync();
                             audioInputs += $"-use_wallclock_as_timestamps 1 -thread_queue_size 2048 -f {inRec.FFmpegFormat} -ar {inRec.SampleRate} -ac {inRec.Channels} -i \\\\.\\pipe\\{inRec.PipeName} ";
-                            audioCount++;
+                            audioInIdx = currentInputIdx++;
                         }
                     }
                 } catch { }
 
-                string audioArgs = "";
-                if (audioCount == 1) {
-                    audioArgs = $"{audioInputs}-map 0:v -map 1:a -c:a aac -b:a 192k -af \"aresample=async=1\" ";
-                } else if (audioCount == 2) {
-                    audioArgs = $"{audioInputs}-filter_complex \"[1:a]aresample=async=1[a1];[2:a]aresample=async=1[a2];[a1][a2]amix=inputs=2:duration=longest[a]\" -map 0:v -map \"[a]\" -c:a aac -b:a 192k ";
+                List<string> filters = new List<string>();
+
+                string preScale = "hwdownload,format=bgra";
+                if (_captureResolution == "1080p") preScale += ",scale=-2:1080";
+                else if (_captureResolution == "720p") preScale += ",scale=-2:720";
+
+                string videoMap = "0:v";
+                if (camIndexIdx != -1) {
+                    filters.Add($"[0:v]{preScale}[main];[{camIndexIdx}:v]scale=320:-2[cam];[main][cam]overlay=20:H-h-20[vout]");
+                    videoMap = "[vout]";
                 } else {
-                    audioArgs = "-map 0:v ";
+                    filters.Add($"[0:v]{preScale}[vout]");
+                    videoMap = "[vout]";
                 }
+
+                string audioMap = "";
+                if (audioOutIdx != -1 && audioInIdx != -1) {
+                    filters.Add($"[{audioOutIdx}:a]aresample=async=1[a1];[{audioInIdx}:a]aresample=async=1[a2];[a1][a2]amix=inputs=2:duration=longest[aout]");
+                    audioMap = " -map \"[aout]\" ";
+                } else if (audioOutIdx != -1) {
+                    filters.Add($"[{audioOutIdx}:a]aresample=async=1[aout]");
+                    audioMap = " -map \"[aout]\" ";
+                } else if (audioInIdx != -1) {
+                    filters.Add($"[{audioInIdx}:a]aresample=async=1[aout]");
+                    audioMap = " -map \"[aout]\" ";
+                }
+
+                string filterArg = filters.Count > 0 ? $"-filter_complex \"{string.Join(";", filters)}\" " : "";
+                string audioCodec = (audioOutIdx != -1 || audioInIdx != -1) ? "-c:a aac -b:a 192k " : "";
 
                 _bgRecorder = new System.Diagnostics.Process();
                 _bgRecorder.StartInfo.FileName = ffmpegPath;
                 // Specify offset and video_size to capture only the target monitor.
                 // This massively reduces file size, permits NVENC to work (it limits at 4096 max width), and makes saving nearly instant.
-                _bgRecorder.StartInfo.Arguments = $"-y -use_wallclock_as_timestamps 1 -thread_queue_size 2048 -f lavfi -i \"ddagrab=output_idx={monIndex}:framerate={fps}:draw_mouse=1:video_size={w}x{h}\" {audioArgs}{scaleFilter}-c:v {encoder} -pix_fmt yuv420p -vsync 1 -f hls -hls_time {segmentTime} -hls_list_size {maxSegments} -hls_flags delete_segments \"{playlistPath}\"";
+                _bgRecorder.StartInfo.Arguments = $"-y -use_wallclock_as_timestamps 1 -thread_queue_size 2048 -f lavfi -i \"ddagrab=output_idx={monIndex}:framerate={fps}:draw_mouse=1:video_size={w}x{h}\" {camInput}{audioInputs}{filterArg}-map \"{videoMap}\"{audioMap}{audioCodec}-c:v {encoder} -pix_fmt yuv420p -vsync 1 -f hls -hls_time {segmentTime} -hls_list_size {maxSegments} -hls_flags delete_segments \"{playlistPath}\"";
                 _bgRecorder.StartInfo.UseShellExecute = false;
                 _bgRecorder.StartInfo.CreateNoWindow = true;
                 _bgRecorder.StartInfo.RedirectStandardInput = true;
@@ -551,6 +567,20 @@ namespace ClipManager
 
             if (!File.Exists(playlistPath)) return;
 
+            try
+            {
+                var uri = new Uri("pack://application:,,,/shot.wav");
+                var streamInfo = System.Windows.Application.GetResourceStream(uri);
+                if (streamInfo != null)
+                {
+                    using (var sp = new System.Media.SoundPlayer(streamInfo.Stream))
+                    {
+                        sp.Play();
+                    }
+                }
+            }
+            catch { }
+
             string gameName = forcedGameName ?? GetForegroundProcessName();
 
             string baseClipDir = string.IsNullOrEmpty(_basePath) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "NVIDIA") : _basePath;
@@ -658,6 +688,7 @@ namespace ClipManager
 
                 LoadMonitors();
                 LoadAudioDevices();
+                LoadCameraDevices();
                 UpdateTrayMenuUI();
 
                 if (_isRecording) SetStatus(GetString("TxtStatusReadyToClip"));
@@ -726,6 +757,8 @@ namespace ClipManager
                         case "CaptureResolution": _captureResolution = value; break;
                         case "AudioOutputId": _audioOutputId = value; break;
                         case "AudioInputId": _audioInputId = value; break;
+                        case "CameraId": _cameraId = value; break;
+                        case "CameraOverlayEnabled": if(bool.TryParse(value, out bool cEn)) _cameraOverlayEnabled = cEn; break;
                         case "NormalizeOnClip": if(bool.TryParse(value, out bool nOn)) _normalizeOnClip = nOn; break;
                         case "CaptureMonitorIndex": if(int.TryParse(value, out int mIdx)) _captureMonitorIndex = mIdx; break;
                         case "HotkeyModifiers": if(uint.TryParse(value, out uint hMod)) _hotkeyModifiers = hMod; break;
@@ -750,6 +783,7 @@ namespace ClipManager
             }
 
             LoadAudioDevices();
+            LoadCameraDevices();
 
             if (TargetSizeSlider != null)
             {
@@ -938,6 +972,8 @@ namespace ClipManager
                 $"CaptureResolution={_captureResolution}",
                 $"AudioOutputId={_audioOutputId}",
                 $"AudioInputId={_audioInputId}",
+                $"CameraId={_cameraId}",
+                $"CameraOverlayEnabled={_cameraOverlayEnabled}",
                 $"NormalizeOnClip={_normalizeOnClip}",
                 $"CaptureMonitorIndex={_captureMonitorIndex}",
                 $"HotkeyModifiers={_hotkeyModifiers}",
@@ -2391,6 +2427,11 @@ namespace ClipManager
                 RunAutoDelete();
             }
 
+            if (_recordEnabled && _isLoaded)
+            {
+                StartBackgroundRecorder();
+            }
+
             SettingsOverlay.Visibility = Visibility.Collapsed;
             if (PlayerOverlay.Visibility == Visibility.Visible)
                 VideoPlayer.Visibility = Visibility.Visible;
@@ -2459,6 +2500,85 @@ namespace ClipManager
             if (AudioOutputComboBox.SelectedItem is AudioDeviceItem item)
             {
                 _audioOutputId = item.Id;
+            }
+        }
+
+        private async void LoadCameraDevices()
+        {
+            try
+            {
+                var outList = new List<CameraDeviceItem> { new CameraDeviceItem { Id = "", Name = GetString("TxtNone") } };
+
+                await DownloadFFmpegIfNeeded();
+                string ffmpegPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Clipless", "ffmpeg", "ffmpeg.exe");
+                if (File.Exists(ffmpegPath))
+                {
+                    var p = new System.Diagnostics.Process();
+                    p.StartInfo.FileName = ffmpegPath;
+                    p.StartInfo.Arguments = "-hide_banner -list_devices true -f dshow -i dummy";
+                    p.StartInfo.UseShellExecute = false;
+                    p.StartInfo.RedirectStandardError = true;
+                    p.StartInfo.CreateNoWindow = true;
+
+                    p.Start();
+                    string output = await p.StandardError.ReadToEndAsync();
+                    await p.WaitForExitAsync();
+
+                    bool inVideo = true; // some ffmpeg versions don't print "DirectShow video devices"
+                    foreach(var line in output.Split('\n'))
+                    {
+                        if (line.Contains("DirectShow video devices")) { inVideo = true; continue; }
+                        if (line.Contains("DirectShow audio devices")) { inVideo = false; break; }
+
+                        if ((inVideo || line.Contains("(video)")) && line.Contains("\"") && !line.Contains("Alternative name") && !line.Contains("(audio)"))
+                        {
+                            var parts = line.Split('"');
+                            if (parts.Length >= 3)
+                            {
+                                outList.Add(new CameraDeviceItem { Id = parts[1], Name = parts[1] });
+                            }
+                        }
+                    }
+                }
+
+                Dispatcher.BeginInvoke(() => {
+                    if (CameraComboBox != null)
+                    {
+                        CameraComboBox.ItemsSource = outList;
+                        var found = outList.FirstOrDefault(x => x.Id == _cameraId);
+                        CameraComboBox.SelectedItem = found ?? outList[0];
+                    }
+                    if (ChkCameraOverlay != null)
+                    {
+                        ChkCameraOverlay.IsChecked = _cameraOverlayEnabled;
+                        ChkCameraOverlay.IsEnabled = outList.Count > 1;
+                    }
+                });
+            }
+            catch { }
+        }
+
+        private void CameraComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (CameraComboBox.SelectedItem is CameraDeviceItem item)
+            {
+                _cameraId = item.Id;
+                if (_isLoaded && _cameraOverlayEnabled && ChkRecordEnabled?.IsChecked == true)
+                {
+                    StartBackgroundRecorder();
+                }
+            }
+        }
+
+        private void ChkCameraOverlay_Changed(object sender, RoutedEventArgs e)
+        {
+            if (ChkCameraOverlay != null)
+            {
+                _cameraOverlayEnabled = ChkCameraOverlay.IsChecked == true;
+            }
+            if (_isLoaded && ChkRecordEnabled?.IsChecked == true)
+            {
+                StartBackgroundRecorder();
             }
         }
 
@@ -2631,6 +2751,12 @@ namespace ClipManager
         protected void OnPropertyChanged([CallerMemberName] string n = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
     }
+    public class CameraDeviceItem
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+    }
+
     public class AudioDeviceItem
     {
         public string Id { get; set; }
