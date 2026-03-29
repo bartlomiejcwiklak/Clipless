@@ -1,4 +1,4 @@
-<img width="700"  alt="logo" src="https://github.com/user-attachments/assets/54e198f4-24f9-4252-b09b-1665420d8321" />
+<img width="500"  alt="logo" src="https://github.com/user-attachments/assets/54e198f4-24f9-4252-b09b-1665420d8321" />
 
 ## An easy to use clip editor for gaming
 
