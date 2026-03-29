@@ -71,8 +71,10 @@
     <system:String x:Key="TxtPaste">Wklej</system:String>
     <system:String x:Key="TxtConfirmDeleteFolder">Czy na pewno chcesz usunąć ten folder i WSZYSTKIE w nim klipy?</system:String>
     <system:String x:Key="TxtNoFolderSelected">Proszę wybrać folder</system:String>
+    <system:String x:Key="TxtRecentClips">Ostatnie Klipy</system:String>
 
     <system:String x:Key="TxtTags">TAGI</system:String>
+    <system:String x:Key="TxtHome">Główna</system:String>
     <system:String x:Key="TxtCreateTag">Utwórz tag</system:String>
     <system:String x:Key="TxtTagWith">Taguj opcje</system:String>
     <system:String x:Key="TxtCreateTagTitle">Nowy Tag</system:String>

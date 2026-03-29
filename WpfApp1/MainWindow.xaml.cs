@@ -30,6 +30,14 @@ namespace ClipManager
         {
             get; set;
         } = new ObservableCollection<VideoClip>();
+        public ObservableCollection<VideoClip> RecentClips
+        {
+            get; set;
+        } = new ObservableCollection<VideoClip>();
+        public ObservableCollection<ClipTag> SpecialTagsList
+        {
+            get; set;
+        } = new ObservableCollection<ClipTag>();
         public ObservableCollection<ClipTag> TagsList
         {
             get; set;
@@ -178,11 +186,15 @@ namespace ClipManager
             _mediaPlayer.EndReached += MediaPlayer_EndReached;
 
             GameFolderList.ItemsSource = Folders;
+            SpecialTagsListBox.ItemsSource = SpecialTagsList;
             TagsListBox.ItemsSource = TagsList;
             ClipList.ItemsSource = Clips;
+            RecentClipsList.ItemsSource = RecentClips;
 
             LoadSettings();
             ScanForGameFolders();
+
+            SpecialTagsListBox.SelectedIndex = 0;
 
             InitTrayIcon();
             StartBackgroundRecorder();
@@ -670,15 +682,20 @@ namespace ClipManager
                 this.Resources.MergedDictionaries.Clear();
                 this.Resources.MergedDictionaries.Add(dict);
 
-                var favTag = TagsList.FirstOrDefault(t => t.Id == "FAVORITES_SPECIAL_TAG");
+                var favTag = SpecialTagsList.FirstOrDefault(t => t.Id == "FAVORITES_SPECIAL_TAG");
                 if (favTag != null)
                 {
                     favTag.Name = $"⭐ {GetString("TxtFavorites")}";
                 }
+                var homeTag = SpecialTagsList.FirstOrDefault(t => t.Id == "HOME_SPECIAL_TAG");
+                if (homeTag != null)
+                {
+                    homeTag.Name = $"🏠 {GetString("TxtHome") ?? "Home"}";
+                }
 
                 if (GameFolderList.SelectedItem is GameFolder selectedFolder)
                     RefreshCurrentFolder(selectedFolder.FullPath);
-                if (TagsListBox.SelectedItem is ClipTag t && t.Id == "FAVORITES_SPECIAL_TAG")
+                if (SpecialTagsListBox.SelectedItem is ClipTag st && st.Id == "FAVORITES_SPECIAL_TAG")
                     RefreshFavorites();
 
                 if (TxtAutoDeleteValue != null)
@@ -698,15 +715,17 @@ namespace ClipManager
 
         private void LoadSettings()
         {
-            TagsList.Clear();
-            TagsList.Add(new ClipTag { Id = "FAVORITES_SPECIAL_TAG", Name = $"⭐ {GetString("TxtFavorites")}", Color = "#FFD700" });
+            SpecialTagsList.Clear();
+            SpecialTagsList.Add(new ClipTag { Id = "HOME_SPECIAL_TAG", Name = $"🏠 {GetString("TxtHome") ?? "Home"}", Color = "Transparent" });
+            SpecialTagsList.Add(new ClipTag { Id = "FAVORITES_SPECIAL_TAG", Name = $"⭐ {GetString("TxtFavorites")}", Color = "Transparent" });
 
+            TagsList.Clear();
             if (File.Exists(_tagsFilePath))
             {
                 foreach(string line in File.ReadAllLines(_tagsFilePath))
                 {
                     string[] parts = line.Split('|');
-                    if (parts.Length >= 3 && parts[0] != "FAVORITES_SPECIAL_TAG")
+                    if (parts.Length >= 3 && parts[0] != "FAVORITES_SPECIAL_TAG" && parts[0] != "HOME_SPECIAL_TAG")
                     {
                         TagsList.Add(new ClipTag { Id = parts[0], Name = parts[1], Color = parts[2] });
                     }
@@ -1102,22 +1121,34 @@ namespace ClipManager
             if (MenuTagClip != null)
             {
                 MenuTagClip.Items.Clear();
-                foreach (var tag in TagsList.Where(t => t.Id != "FAVORITES_SPECIAL_TAG"))
+                foreach (var tag in TagsList.Where(t => t.Id != "FAVORITES_SPECIAL_TAG" && t.Id != "HOME_SPECIAL_TAG"))
                 {
                     var mi = new System.Windows.Controls.MenuItem { Header = tag.Name, Tag = tag.Id };
                     mi.Click += (s, e) => ToggleClipTag(tag.Id);
                     MenuTagClip.Items.Add(mi);
                 }
             }
+            if (MenuTagRecentClip != null)
+            {
+                MenuTagRecentClip.Items.Clear();
+                foreach (var tag in TagsList.Where(t => t.Id != "FAVORITES_SPECIAL_TAG" && t.Id != "HOME_SPECIAL_TAG"))
+                {
+                    var mi = new System.Windows.Controls.MenuItem { Header = tag.Name, Tag = tag.Id };
+                    mi.Click += (s, e) => ToggleClipTag(tag.Id);
+                    MenuTagRecentClip.Items.Add(mi);
+                }
+            }
         }
 
         private void ToggleClipTag(string tagId)
         {
-            if (ClipList.SelectedItems.Count > 0)
+            var selectedItems = ClipList.SelectedItems.Count > 0 ? ClipList.SelectedItems : RecentClipsList.SelectedItems;
+
+            if (selectedItems.Count > 0)
             {
                 var targetTag = TagsList.FirstOrDefault(t => t.Id == tagId);
 
-                foreach(VideoClip clip in ClipList.SelectedItems)
+                foreach(VideoClip clip in selectedItems)
                 {
                     if (!_clipTagMap.ContainsKey(clip.FullPath)) _clipTagMap[clip.FullPath] = new HashSet<string>();
 
@@ -1148,7 +1179,7 @@ namespace ClipManager
 
         private void SaveTags()
         {
-            File.WriteAllLines(_tagsFilePath, TagsList.Where(g => g.Id != "FAVORITES_SPECIAL_TAG").Select(t => $"{t.Id}|{t.Name}|{t.Color}"));
+            File.WriteAllLines(_tagsFilePath, TagsList.Where(g => g.Id != "FAVORITES_SPECIAL_TAG" && g.Id != "HOME_SPECIAL_TAG").Select(t => $"{t.Id}|{t.Name}|{t.Color}"));
             BuildTagContextMenu();
         }
 
@@ -1293,6 +1324,40 @@ namespace ClipManager
             return clip;
         }
 
+        private void SpecialTagsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (SpecialTagsListBox.SelectedItem is ClipTag tag)
+            {
+                if (PlayerOverlay.Visibility == Visibility.Visible)
+                {
+                    ClosePlayer_Click(null, null);
+                }
+
+                GameFolderList.SelectedItem = null;
+                TagsListBox.SelectedItem = null;
+                TxtNoFolderMessage.Visibility = Visibility.Collapsed;
+                if (TxtRecentClipsTitle != null) TxtRecentClipsTitle.Visibility = Visibility.Collapsed;
+                if (RecentClipsList != null) RecentClipsList.Visibility = Visibility.Collapsed;
+                if (ClipList != null) ClipList.Visibility = Visibility.Visible;
+                _folderWatcher.EnableRaisingEvents = false;
+
+                if (tag.Id == "HOME_SPECIAL_TAG")
+                {
+                    Clips.Clear();
+                    RefreshRecentClips();
+                    TxtNoFolderMessage.Visibility = Visibility.Visible;
+                    if (ClipList != null) ClipList.Visibility = Visibility.Collapsed;
+                    return;
+                }
+
+                if (tag.Id == "FAVORITES_SPECIAL_TAG")
+                {
+                    RefreshFavorites();
+                    return;
+                }
+            }
+        }
+
         private async void TagsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (TagsListBox.SelectedItem is ClipTag tag)
@@ -1303,14 +1368,12 @@ namespace ClipManager
                 }
 
                 GameFolderList.SelectedItem = null;
+                SpecialTagsListBox.SelectedItem = null;
                 TxtNoFolderMessage.Visibility = Visibility.Collapsed;
+                if (TxtRecentClipsTitle != null) TxtRecentClipsTitle.Visibility = Visibility.Collapsed;
+                if (RecentClipsList != null) RecentClipsList.Visibility = Visibility.Collapsed;
+                if (ClipList != null) ClipList.Visibility = Visibility.Visible;
                 _folderWatcher.EnableRaisingEvents = false;
-
-                if (tag.Id == "FAVORITES_SPECIAL_TAG")
-                {
-                    RefreshFavorites();
-                    return;
-                }
 
                 Clips.Clear();
                 var clipMapSnapshot = new Dictionary<string, HashSet<string>>(_clipTagMap);
@@ -1371,16 +1434,23 @@ namespace ClipManager
                 }
 
                 TagsListBox.SelectedItem = null;
+                SpecialTagsListBox.SelectedItem = null;
                 TxtNoFolderMessage.Visibility = Visibility.Collapsed;
+                if (TxtRecentClipsTitle != null) TxtRecentClipsTitle.Visibility = Visibility.Collapsed;
+                if (RecentClipsList != null) RecentClipsList.Visibility = Visibility.Collapsed;
                 if (Directory.Exists(folder.FullPath))
                 {
+                    if (ClipList != null) ClipList.Visibility = Visibility.Visible;
                     _folderWatcher.Path = folder.FullPath;
                     _folderWatcher.EnableRaisingEvents = true;
                     RefreshCurrentFolder(folder.FullPath);
                 }
                 else
                 {
+                    if (ClipList != null) ClipList.Visibility = Visibility.Collapsed;
                     TxtNoFolderMessage.Visibility = Visibility.Visible;
+                    if (TxtRecentClipsTitle != null) TxtRecentClipsTitle.Visibility = Visibility.Visible;
+                    if (RecentClipsList != null) RecentClipsList.Visibility = Visibility.Visible;
                     Clips.Clear();
                 }
             }
@@ -1418,6 +1488,51 @@ namespace ClipManager
                 Clips.Add(clip);
                 LoadThumbnailAsync(clip);
             }
+        }
+
+        private async void RefreshRecentClips()
+        {
+            RecentClips.Clear();
+            if (string.IsNullOrEmpty(_basePath) || !Directory.Exists(_basePath))
+                return;
+
+            var favoritesSnapshot = new HashSet<string>(_favorites);
+            var clipMapSnapshot = new Dictionary<string, HashSet<string>>(_clipTagMap);
+            var tagsListSnapshot = TagsList.ToList();
+            string fileCreatedStr = GetString("TxtFileCreated");
+            string bp = _basePath;
+
+            var temp = await Task.Run(() => {
+                var list = new List<string>();
+                try {
+                    foreach (string path in Directory.GetDirectories(bp))
+                    {
+                        list.AddRange(Directory.GetFiles(path, "*.mp4"));
+                    }
+                } catch { }
+
+                var topFiles = list.Select(f => new FileInfo(f))
+                                   .OrderByDescending(fi => fi.CreationTime)
+                                   .Take(4)
+                                   .ToList();
+
+                var outList = new List<VideoClip>();
+                foreach (var fi in topFiles)
+                {
+                    outList.Add(CreateClipModel(fi.FullName, fileCreatedStr, favoritesSnapshot.Contains(fi.FullName), clipMapSnapshot, tagsListSnapshot));
+                }
+                return outList;
+            });
+
+            RecentClips.Clear();
+            foreach (var clip in temp)
+            {
+                RecentClips.Add(clip);
+                LoadThumbnailAsync(clip);
+            }
+
+            if (TxtRecentClipsTitle != null) TxtRecentClipsTitle.Visibility = RecentClips.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (RecentClipsList != null) RecentClipsList.Visibility = RecentClips.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private async void RefreshCurrentFolder(string path)
@@ -1460,6 +1575,7 @@ namespace ClipManager
                 else if (TagsListBox.SelectedItem is ClipTag t)
                 {
                     if (t.Id == "FAVORITES_SPECIAL_TAG") RefreshFavorites();
+                    else if (t.Id == "HOME_SPECIAL_TAG") RefreshRecentClips();
                     else TagsListBox_SelectionChanged(null, null);
                 }
             }));
@@ -1636,10 +1752,22 @@ namespace ClipManager
             catch { }
         }
 
+        private void ClipListItem_PreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (sender is ListBoxItem item)
+            {
+                if (!item.IsSelected)
+                {
+                    item.IsSelected = true;
+                }
+            }
+        }
+
         private async void ClipList_MouseDoubleClick(
             object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            if (ClipList.SelectedItem is VideoClip clip)
+            var senderListBox = sender as System.Windows.Controls.ListBox;
+            if (senderListBox?.SelectedItem is VideoClip clip)
             {
                 if (!await WaitForFileAsync(clip.FullPath))
                 {
@@ -1809,6 +1937,30 @@ namespace ClipManager
                 SpeedText.Text = $"{e.NewValue:0.00}x";
             }
         }
+        private void PlayFromSelectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_mediaPlayer == null || _currentClip == null) return;
+
+            if (_mediaPlayer.State == LibVLCSharp.Shared.VLCState.Ended || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Stopped || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Error)
+            {
+                _mediaPlayer.Play(new Media(_libVLC, new Uri(_currentClip.FullPath)));
+                Task.Run(async () => {
+                    await Task.Delay(250);
+                    _mediaPlayer.Time = _trimStartMs;
+                });
+            }
+            else
+            {
+                _mediaPlayer.Time = _trimStartMs;
+                if (!_mediaPlayer.IsPlaying)
+                {
+                    _mediaPlayer.Play();
+                }
+            }
+
+            PlayPauseButton.Content = "II";
+        }
+
         private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
         {
             if (_mediaPlayer == null)
@@ -1918,18 +2070,20 @@ namespace ClipManager
 
         private void MenuCopy_Click(object sender, RoutedEventArgs e)
         {
-            if (ClipList.SelectedItems.Count == 0)
+            var selectedItems = ClipList.SelectedItems.Count > 0 ? ClipList.SelectedItems : RecentClipsList.SelectedItems;
+            if (selectedItems.Count == 0)
                 return;
             var f = new System.Collections.Specialized.StringCollection();
-            foreach (VideoClip c in ClipList.SelectedItems) f.Add(c.FullPath);
+            foreach (VideoClip c in selectedItems) f.Add(c.FullPath);
             System.Windows.Clipboard.SetFileDropList(f);
         }
         private void MenuCut_Click(object sender, RoutedEventArgs e)
         {
-            if (ClipList.SelectedItems.Count == 0)
+            var selectedItems = ClipList.SelectedItems.Count > 0 ? ClipList.SelectedItems : RecentClipsList.SelectedItems;
+            if (selectedItems.Count == 0)
                 return;
             var f = new System.Collections.Specialized.StringCollection();
-            foreach (VideoClip c in ClipList.SelectedItems) f.Add(c.FullPath);
+            foreach (VideoClip c in selectedItems) f.Add(c.FullPath);
             System.Windows.DataObject d = new System.Windows.DataObject();
             d.SetFileDropList(f);
             d.SetData("Preferred DropEffect",
@@ -1988,12 +2142,13 @@ namespace ClipManager
 
         private async void MenuDelete_Click(object sender, RoutedEventArgs e)
         {
-            if (ClipList.SelectedItems.Count == 0)
+            var selectedItems = ClipList.SelectedItems.Count > 0 ? ClipList.SelectedItems : RecentClipsList.SelectedItems;
+            if (selectedItems.Count == 0)
                 return;
             if (await ShowDeleteConfirmOverlayAsync("TxtConfirmDeleteTitle",
                                                     "TxtConfirmDelete") ==
                 System.Windows.MessageBoxResult.Yes)
-                foreach (var c in ClipList.SelectedItems.Cast<VideoClip>().ToList())
+                foreach (var c in selectedItems.Cast<VideoClip>().ToList())
                     try
                     {
                         File.Delete(c.FullPath);
@@ -2006,9 +2161,10 @@ namespace ClipManager
         private VideoClip _clipRen;
         private void MenuRename_Click(object sender, RoutedEventArgs e)
         {
-            if (ClipList.SelectedItems.Count == 0)
+            var selectedItem = ClipList.SelectedItems.Count > 0 ? ClipList.SelectedItem : RecentClipsList.SelectedItem;
+            if (selectedItem == null)
                 return;
-            _clipRen = ClipList.SelectedItem as VideoClip;
+            _clipRen = selectedItem as VideoClip;
             TxtRenameInput.Text = Path.GetFileNameWithoutExtension(_clipRen.Name);
             RenameOverlay.Visibility = Visibility.Visible;
             VideoPlayer.Visibility = Visibility.Hidden;

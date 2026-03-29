@@ -18,6 +18,78 @@
     </ui:FluentWindow.Resources>
 
     <Grid>
+        <Grid.Resources>
+            <DataTemplate x:Key="ClipItemTemplate">
+                <Border Width="220" Margin="0" Background="#222222" CornerRadius="4" Padding="5" MouseEnter="Clip_MouseEnter" MouseLeave="Clip_MouseLeave">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Image Grid.Row="0" Source="{Binding Thumbnail}" Height="120" Stretch="UniformToFill" Margin="0,0,0,5" />
+                        <ItemsControl Grid.Row="0" ItemsSource="{Binding Tags}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="5">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="12" Height="12" Background="{Binding Color}" CornerRadius="2" Margin="4,0,0,0">
+                                        <Border.Effect>
+                                            <DropShadowEffect ShadowDepth="0" Color="Black" BlurRadius="3" Opacity="0.8"/>
+                                        </Border.Effect>
+                                        <ToolTipService.ToolTip>
+                                            <ToolTip Content="{Binding Name}" />
+                                        </ToolTipService.ToolTip>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <ToggleButton Grid.Row="0" IsChecked="{Binding IsFavorite}" Click="Favorite_Click" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="5" Background="Transparent" BorderThickness="0" FontSize="20" Padding="0">
+                            <ToggleButton.Style>
+                                <Style TargetType="ToggleButton">
+                                    <Setter Property="Content" Value="☆" />
+                                    <Setter Property="Foreground" Value="White" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ToggleButton">
+                                                <Border Background="Transparent">
+                                                    <TextBlock Text="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" FontSize="{TemplateBinding FontSize}" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                        <TextBlock.Effect>
+                                                            <DropShadowEffect ShadowDepth="0" Color="Black" BlurRadius="5" Opacity="0.8"/>
+                                                        </TextBlock.Effect>
+                                                    </TextBlock>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter Property="Content" Value="★" />
+                                            <Setter Property="Foreground" Value="#FFD700" />
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Cursor" Value="Hand" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ToggleButton.Style>
+                        </ToggleButton>
+                        <TextBlock Grid.Row="1" Text="{Binding Name}" Foreground="White" FontSize="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" HorizontalAlignment="Center" Margin="0,0,0,2"/>
+                        <Grid Grid.Row="2" Margin="0,0,0,2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding CreationDate}" Foreground="#808080" FontSize="11" HorizontalAlignment="Left" />
+                            <TextBlock Grid.Column="1" Text="{Binding FileSize}" Foreground="#808080" FontSize="11" HorizontalAlignment="Right" />
+                        </Grid>
+                    </Grid>
+                </Border>
+            </DataTemplate>
+        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -42,12 +114,28 @@
                     <Grid Grid.Row="0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*" x:Name="TagsListRow"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*" x:Name="FoldersListRow"/>
                         </Grid.RowDefinitions>
 
-                        <Grid Grid.Row="0" Margin="5,0,0,10">
+                        <ListBox Grid.Row="0" x:Name="SpecialTagsListBox" Background="Transparent" BorderThickness="0" Margin="0,0,0,10" SelectionChanged="SpecialTagsListBox_SelectionChanged">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Padding" Value="8,5" />
+                                    <Setter Property="MinHeight" Value="24" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Name}" Margin="0,0" VerticalAlignment="Center"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <Grid Grid.Row="1" Margin="5,0,0,10">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Cursor="Hand" MouseDown="BtnToggleTags_Click" Background="Transparent" MinWidth="100">
                             <TextBlock x:Name="TxtTagsArrow" Text="▼ " Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
                             <TextBlock Text="{DynamicResource TxtTags}" Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -55,7 +143,7 @@
                         <Button x:Name="BtnCreateTag" Content="➕" Background="Transparent" Foreground="Gray" BorderThickness="0" FontSize="14" HorizontalAlignment="Right" Padding="5,0,5,0" Click="BtnCreateTag_Click" ToolTip="{DynamicResource TxtCreateTag}"/>
                     </Grid>
 
-                    <ListBox Grid.Row="1" x:Name="TagsListBox" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="TagsListBox_SelectionChanged">
+                    <ListBox Grid.Row="2" x:Name="TagsListBox" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="TagsListBox_SelectionChanged">
                         <ListBox.Resources>
                             <ContextMenu x:Key="TagItemContextMenu">
                                 <s:MenuItem Header="{DynamicResource TxtRename}" Click="MenuTagRename_Click"/>
@@ -70,32 +158,19 @@
                                 <Setter Property="MinHeight" Value="24" />
                                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="TagsListBox_PreviewMouseRightButtonDown"/>
                                 <Setter Property="ContextMenu" Value="{StaticResource TagItemContextMenu}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Id}" Value="FAVORITES_SPECIAL_TAG">
-                                        <Setter Property="Margin" Value="0,0,0,12" />
-                                    </DataTrigger>
-                                </Style.Triggers>
                             </Style>
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0">
-                                        <TextBlock Text="●" Foreground="{Binding Color}" FontSize="18" Margin="0,-3,8,0" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Name}" Margin="0,0" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                    <Border x:Name="FavSeparator" Height="1" Background="#444444" Margin="-8,10,-8,-11" Visibility="Collapsed" />
+                                <StackPanel Orientation="Horizontal" Margin="0,0">
+                                    <TextBlock x:Name="ColorDot" Text="●" Foreground="{Binding Color}" FontSize="18" Margin="0,-3,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding Name}" Margin="0,0" VerticalAlignment="Center"/>
                                 </StackPanel>
-                                <DataTemplate.Triggers>
-                                    <DataTrigger Binding="{Binding Id}" Value="FAVORITES_SPECIAL_TAG">
-                                        <Setter TargetName="FavSeparator" Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
 
-                    <Grid Grid.Row="2" Margin="5,15,0,10">
+                    <Grid Grid.Row="3" Margin="5,15,0,10">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Cursor="Hand" MouseDown="BtnToggleFolders_Click" Background="Transparent" MinWidth="100">
                             <TextBlock x:Name="TxtFoldersArrow" Text="▼ " Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
                             <TextBlock Text="{DynamicResource TxtGameFolders}" Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -103,7 +178,7 @@
                         <Button x:Name="BtnCreateFolder" Content="➕" Background="Transparent" Foreground="Gray" BorderThickness="0" FontSize="14" HorizontalAlignment="Right" Padding="5,0,5,0" Click="BtnCreateFolder_Click" ToolTip="{DynamicResource TxtCreateFolder}"/>
                     </Grid>
 
-                    <ListBox Grid.Row="3" x:Name="GameFolderList" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="GameFolderList_SelectionChanged">
+                    <ListBox Grid.Row="4" x:Name="GameFolderList" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="GameFolderList_SelectionChanged">
                         <ListBox.Resources>
                             <ContextMenu x:Key="FolderItemContextMenu">
                                 <s:MenuItem Header="{DynamicResource TxtPaste}" Click="MenuFolderPaste_Click"/>
@@ -162,9 +237,38 @@
 
                 <StackPanel Grid.Row="1" x:Name="TxtNoFolderMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Visible">
                     <Image Source="logo.png" MaxWidth="300" MaxHeight="300" Margin="0,0,0,15" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
-                    <TextBlock Text="{DynamicResource TxtNoFolderSelected}" Foreground="Gray" FontSize="16" HorizontalAlignment="Center"/>
+                    <TextBlock Text="{DynamicResource TxtNoFolderSelected}" Foreground="Gray" FontSize="16" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+                    <TextBlock x:Name="TxtRecentClipsTitle" Text="{DynamicResource TxtRecentClips}" Foreground="White" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Visibility="Collapsed" Margin="0,0,0,10"/>
+                    <ListBox x:Name="RecentClipsList" Background="Transparent" BorderThickness="0" Margin="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="ClipList_MouseDoubleClick" Visibility="Collapsed" ItemTemplate="{StaticResource ClipItemTemplate}" SelectionMode="Extended">
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <s:MenuItem x:Name="MenuTagRecentClip" Header="{DynamicResource TxtTagWith}" />
+                                <Separator/>
+                                <s:MenuItem Header="{DynamicResource TxtCopy}" Click="MenuCopy_Click"/>
+                                <s:MenuItem Header="{DynamicResource TxtCut}" Click="MenuCut_Click"/>
+                                <s:MenuItem Header="{DynamicResource TxtPaste}" Click="MenuClipPaste_Click"/>
+                                <s:MenuItem Header="{DynamicResource TxtRename}" Click="MenuRename_Click"/>
+                                <Separator/>
+                                <s:MenuItem Header="{DynamicResource TxtDelete}" Foreground="Red" Click="MenuDelete_Click"/>
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                <Setter Property="Padding" Value="5" />
+                                <Setter Property="Margin" Value="5" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                                <EventSetter Event="PreviewMouseRightButtonDown" Handler="ClipListItem_PreviewMouseRightButtonDown"/>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel HorizontalAlignment="Center" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                    </ListBox>
                 </StackPanel>
-                <ListBox Grid.Row="1" x:Name="ClipList" Background="Transparent" BorderThickness="0" Margin="0" SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="ClipList_MouseDoubleClick">
+                <ListBox Grid.Row="1" x:Name="ClipList" Background="Transparent" BorderThickness="0" Margin="0" SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="ClipList_MouseDoubleClick" ItemTemplate="{StaticResource ClipItemTemplate}">
                     <ListBox.ContextMenu>
                         <ContextMenu>
                             <s:MenuItem x:Name="MenuTagClip" Header="{DynamicResource TxtTagWith}" />
@@ -183,6 +287,7 @@
                             <Setter Property="Margin" Value="5" />
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                            <EventSetter Event="PreviewMouseRightButtonDown" Handler="ClipListItem_PreviewMouseRightButtonDown"/>
                         </Style>
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemsPanel>
@@ -190,78 +295,6 @@
                             <WrapPanel />
                         </ItemsPanelTemplate>
                     </ListBox.ItemsPanel>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <Border Width="220" Margin="0" Background="#222222" CornerRadius="4" Padding="5" MouseEnter="Clip_MouseEnter" MouseLeave="Clip_MouseLeave">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <Image Grid.Row="0" Source="{Binding Thumbnail}" Height="120" Stretch="UniformToFill" Margin="0,0,0,5" />
-                                    <ItemsControl Grid.Row="0" ItemsSource="{Binding Tags}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="5">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Width="12" Height="12" Background="{Binding Color}" CornerRadius="2" Margin="4,0,0,0">
-                                                    <Border.Effect>
-                                                        <DropShadowEffect ShadowDepth="0" Color="Black" BlurRadius="3" Opacity="0.8"/>
-                                                    </Border.Effect>
-                                                    <ToolTipService.ToolTip>
-                                                        <ToolTip Content="{Binding Name}" />
-                                                    </ToolTipService.ToolTip>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <ToggleButton Grid.Row="0" IsChecked="{Binding IsFavorite}" Click="Favorite_Click" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="5" Background="Transparent" BorderThickness="0" FontSize="20" Padding="0">
-                                        <ToggleButton.Style>
-                                            <Style TargetType="ToggleButton">
-                                                <Setter Property="Content" Value="☆" />
-                                                <Setter Property="Foreground" Value="White" />
-                                                <Setter Property="Template">
-                                                    <Setter.Value>
-                                                        <ControlTemplate TargetType="ToggleButton">
-                                                            <Border Background="Transparent">
-                                                                <TextBlock Text="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" FontSize="{TemplateBinding FontSize}" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                                                    <TextBlock.Effect>
-                                                                        <DropShadowEffect ShadowDepth="0" Color="Black" BlurRadius="5" Opacity="0.8"/>
-                                                                    </TextBlock.Effect>
-                                                                </TextBlock>
-                                                            </Border>
-                                                        </ControlTemplate>
-                                                    </Setter.Value>
-                                                </Setter>
-                                                <Style.Triggers>
-                                                    <Trigger Property="IsChecked" Value="True">
-                                                        <Setter Property="Content" Value="★" />
-                                                        <Setter Property="Foreground" Value="#FFD700" />
-                                                    </Trigger>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter Property="Cursor" Value="Hand" />
-                                                    </Trigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ToggleButton.Style>
-                                    </ToggleButton>
-                                    <TextBlock Grid.Row="1" Text="{Binding Name}" Foreground="White" FontSize="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" HorizontalAlignment="Center" Margin="0,0,0,2"/>
-                                    <Grid Grid.Row="2" Margin="0,0,0,2">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="{Binding CreationDate}" Foreground="#808080" FontSize="11" HorizontalAlignment="Left" />
-                                        <TextBlock Grid.Column="1" Text="{Binding FileSize}" Foreground="#808080" FontSize="11" HorizontalAlignment="Right" />
-                                    </Grid>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
                 </ListBox>
 
                 <Grid Grid.Row="1" x:Name="PlayerOverlay" Visibility="Collapsed" Background="#111111">
@@ -283,7 +316,10 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Button x:Name="PlayPauseButton" Grid.Column="0" Content="⏸" Width="35" Height="35" Margin="5,0,10,0" Background="Transparent" BorderThickness="0" Foreground="White" FontSize="18" Click="PlayPauseButton_Click"/>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,10,0">
+                            <Button x:Name="PlayPauseButton" Content="⏸" Width="35" Height="35" Margin="5,0,0,0" Background="Transparent" BorderThickness="0" Foreground="White" FontSize="18" Click="PlayPauseButton_Click"/>
+                            <Button x:Name="PlayFromSelectionButton" Content="⏮" ToolTip="Play from selection" Width="35" Height="35" Margin="0,0,0,0" Background="Transparent" BorderThickness="0" Foreground="White" FontSize="18" Click="PlayFromSelectionButton_Click"/>
+                        </StackPanel>
                         <TextBlock x:Name="TimeDisplay" Grid.Column="1" Text="00:00.00 / 00:00" Foreground="White" VerticalAlignment="Center" Margin="0,0,15,0" Width="110"/>
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,15,0" VerticalAlignment="Center">
                             <TextBlock x:Name="TrimText" Text="00:00 - End" Foreground="#FFD700" VerticalAlignment="Center" Margin="0,0,10,0" Width="85" TextAlignment="Center"/>
