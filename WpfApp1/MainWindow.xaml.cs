@@ -184,6 +184,13 @@ namespace ClipManager
 
             InitTrayIcon();
             StartBackgroundRecorder();
+
+            if (Environment.GetCommandLineArgs().Contains("-autostart"))
+            {
+                this.WindowState = WindowState.Minimized;
+                this.ShowInTaskbar = false;
+                this.Loaded += (s, e) => { this.Visibility = Visibility.Hidden; };
+            }
         }
 
         private void UpdateTrayMenuUI()
@@ -208,6 +215,8 @@ namespace ClipManager
             _notifyIcon.Visible = true;
             _notifyIcon.Text = "Clipless Background Recorder";
             _notifyIcon.DoubleClick += (s, e) => {
+                this.ShowInTaskbar = true;
+                this.WindowState = WindowState.Normal;
                 this.Visibility = Visibility.Visible;
                 this.Activate();
             };
@@ -218,6 +227,8 @@ namespace ClipManager
             });
             menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
             menu.Items.Add("Open Clipless", null, (s, e) => {
+                this.ShowInTaskbar = true;
+                this.WindowState = WindowState.Normal;
                 this.Visibility = Visibility.Visible;
                 this.Activate();
             });
@@ -270,7 +281,9 @@ namespace ClipManager
                         }
                         catch { }
 
-                        Dispatcher.BeginInvoke(new Action(() => SaveBufferedClip()));
+                        string activeGame = GetForegroundProcessName();
+
+                        Dispatcher.BeginInvoke(new Action(() => SaveBufferedClip(activeGame)));
                     }
                 }
             }
@@ -473,7 +486,42 @@ namespace ClipManager
             } catch {}
         }
 
-        private void SaveBufferedClip()
+        private string GetForegroundProcessName()
+        {
+            string gameName = "Desktop";
+            try
+            {
+                IntPtr hwnd = GetForegroundWindow();
+                IntPtr shellHwnd = GetShellWindow();
+                if (hwnd != IntPtr.Zero && hwnd != shellHwnd)
+                {
+                    GetWindowThreadProcessId(hwnd, out uint pid);
+                    if (pid > 0)
+                    {
+                        var process = System.Diagnostics.Process.GetProcessById((int)pid);
+                        string procName = process.ProcessName;
+                        if (!string.Equals(procName, "explorer", StringComparison.OrdinalIgnoreCase))
+                        {
+                            try { gameName = process.MainModule.FileVersionInfo.ProductName; } catch { }
+                            if (string.IsNullOrWhiteSpace(gameName)) gameName = procName;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            // Ensure valid characters for folder name
+            foreach (char c in Path.GetInvalidFileNameChars())
+            {
+                gameName = gameName.Replace(c.ToString(), "");
+            }
+
+            if (string.IsNullOrWhiteSpace(gameName)) gameName = "Desktop";
+
+            return gameName;
+        }
+
+        private void SaveBufferedClip(string forcedGameName = null)
         {
             if (!_isRecording) return;
 
@@ -503,33 +551,7 @@ namespace ClipManager
 
             if (!File.Exists(playlistPath)) return;
 
-            string gameName = "Desktop";
-            try
-            {
-                IntPtr hwnd = GetForegroundWindow();
-                IntPtr shellHwnd = GetShellWindow();
-                if (hwnd != IntPtr.Zero && hwnd != shellHwnd)
-                {
-                    GetWindowThreadProcessId(hwnd, out uint pid);
-                    if (pid > 0)
-                    {
-                        var process = System.Diagnostics.Process.GetProcessById((int)pid);
-                        string procName = process.ProcessName;
-                        if (!string.Equals(procName, "explorer", StringComparison.OrdinalIgnoreCase))
-                        {
-                            try { gameName = process.MainModule.FileVersionInfo.ProductName; } catch { }
-                            if (string.IsNullOrWhiteSpace(gameName)) gameName = procName;
-                        }
-                    }
-                }
-            }
-            catch { }
-
-            // Ensure valid characters for folder name
-            foreach (char c in Path.GetInvalidFileNameChars())
-            {
-                gameName = gameName.Replace(c.ToString(), "");
-            }
+            string gameName = forcedGameName ?? GetForegroundProcessName();
 
             string baseClipDir = string.IsNullOrEmpty(_basePath) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "NVIDIA") : _basePath;
             string outDir = Path.Combine(baseClipDir, gameName);
@@ -758,12 +780,16 @@ namespace ClipManager
 
             try
             {
-                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false))
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
                 {
                     if (key != null)
                     {
-                        var val = key.GetValue("Clipless");
+                        var val = key.GetValue("Clipless") as string;
                         _autoStartEnabled = (val != null);
+                        if (_autoStartEnabled && !val.Contains("-autostart"))
+                        {
+                            key.SetValue("Clipless", $"\"{Environment.ProcessPath}\" -autostart");
+                        }
                     }
                 }
             }
@@ -2465,7 +2491,7 @@ namespace ClipManager
                         {
                             if (_autoStartEnabled)
                             {
-                                key.SetValue("Clipless", $"\"{Environment.ProcessPath}\"");
+                                key.SetValue("Clipless", $"\"{Environment.ProcessPath}\" -autostart");
                             }
                             else
                             {
