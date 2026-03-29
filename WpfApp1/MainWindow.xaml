@@ -11,6 +11,7 @@
 
     <ui:FluentWindow.Resources>
         <ResourceDictionary>
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Dictionaries/Strings.en.xaml" />
             </ResourceDictionary.MergedDictionaries>
@@ -47,33 +48,30 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <ToggleButton Grid.Row="0" IsChecked="{Binding IsFavorite}" Click="Favorite_Click" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="5" Background="Transparent" BorderThickness="0" FontSize="20" Padding="0">
+                        <ToggleButton Grid.Row="0" IsChecked="{Binding IsFavorite}" Click="Favorite_Click" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="5" Background="Transparent" BorderThickness="0" Padding="0">
                             <ToggleButton.Style>
                                 <Style TargetType="ToggleButton">
-                                    <Setter Property="Content" Value="☆" />
-                                    <Setter Property="Foreground" Value="White" />
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="ToggleButton">
                                                 <Border Background="Transparent">
-                                                    <TextBlock Text="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" FontSize="{TemplateBinding FontSize}" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                                        <TextBlock.Effect>
+                                                    <Image x:Name="FavIcon" Source="/Images/star_empty.png" Width="20" Height="20">
+                                                        <Image.Effect>
                                                             <DropShadowEffect ShadowDepth="0" Color="Black" BlurRadius="5" Opacity="0.8"/>
-                                                        </TextBlock.Effect>
-                                                    </TextBlock>
+                                                        </Image.Effect>
+                                                    </Image>
                                                 </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Setter TargetName="FavIcon" Property="Source" Value="/Images/star_filled.png"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Cursor" Value="Hand" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
                                             </ControlTemplate>
                                         </Setter.Value>
                                     </Setter>
-                                    <Style.Triggers>
-                                        <Trigger Property="IsChecked" Value="True">
-                                            <Setter Property="Content" Value="★" />
-                                            <Setter Property="Foreground" Value="#FFD700" />
-                                        </Trigger>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Cursor" Value="Hand" />
-                                        </Trigger>
-                                    </Style.Triggers>
                                 </Style>
                             </ToggleButton.Style>
                         </ToggleButton>
@@ -130,7 +128,10 @@
                             </ListBox.ItemContainerStyle>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding Name}" Margin="0,0" VerticalAlignment="Center"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Image Source="{Binding IconPath}" Width="16" Height="16" Margin="0,0,8,0" Visibility="{Binding HasIcon, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        <TextBlock Text="{Binding Name}" Margin="0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
@@ -140,7 +141,9 @@
                             <TextBlock x:Name="TxtTagsArrow" Text="▼ " Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
                             <TextBlock Text="{DynamicResource TxtTags}" Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
                         </StackPanel>
-                        <Button x:Name="BtnCreateTag" Content="➕" Background="Transparent" Foreground="Gray" BorderThickness="0" FontSize="14" HorizontalAlignment="Right" Padding="5,0,5,0" Click="BtnCreateTag_Click" ToolTip="{DynamicResource TxtCreateTag}"/>
+                        <Button x:Name="BtnCreateTag" Background="Transparent" Foreground="Gray" BorderThickness="0" Width="28" Height="28" HorizontalAlignment="Right" Click="BtnCreateTag_Click" ToolTip="{DynamicResource TxtCreateTag}" Padding="2">
+                            <Image Source="/Images/add.png" Stretch="Uniform" Margin="2" Width="16" Height="16"/>
+                        </Button>
                     </Grid>
 
                     <ListBox Grid.Row="2" x:Name="TagsListBox" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="TagsListBox_SelectionChanged">
@@ -175,7 +178,9 @@
                             <TextBlock x:Name="TxtFoldersArrow" Text="▼ " Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
                             <TextBlock Text="{DynamicResource TxtGameFolders}" Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
                         </StackPanel>
-                        <Button x:Name="BtnCreateFolder" Content="➕" Background="Transparent" Foreground="Gray" BorderThickness="0" FontSize="14" HorizontalAlignment="Right" Padding="5,0,5,0" Click="BtnCreateFolder_Click" ToolTip="{DynamicResource TxtCreateFolder}"/>
+                        <Button x:Name="BtnCreateFolder" Background="Transparent" Foreground="Gray" BorderThickness="0" Width="28" Height="28" HorizontalAlignment="Right" Click="BtnCreateFolder_Click" ToolTip="{DynamicResource TxtCreateFolder}" Padding="2">
+                            <Image Source="/Images/add.png" Stretch="Uniform" Margin="2" Width="16" Height="16"/>
+                        </Button>
                     </Grid>
 
                     <ListBox Grid.Row="4" x:Name="GameFolderList" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="GameFolderList_SelectionChanged">
@@ -222,8 +227,10 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="{DynamicResource TxtRecordedClips}" Foreground="Gray" FontWeight="SemiBold" Padding="10" VerticalAlignment="Center"/>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
-                        <Button x:Name="BtnRefresh" Content="🔄" Background="Transparent" Foreground="Gray" BorderThickness="0" FontSize="16" Margin="0,0,15,0" Click="BtnRefresh_Click" ToolTip="{DynamicResource TxtRefresh}"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5,10,0">
+                        <Button x:Name="BtnRefresh" Background="Transparent" Foreground="Gray" BorderThickness="0" Width="32" Height="32" Margin="0,0,15,0" Click="BtnRefresh_Click" ToolTip="{DynamicResource TxtRefresh}" Padding="2">
+                            <Image Source="/Images/refresh.png" Stretch="Uniform" Margin="2" Width="20" Height="20"/>
+                        </Button>
                         <TextBlock Text="{DynamicResource TxtSortBy}" Foreground="Gray" VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <ComboBox x:Name="SortComboBox" Width="130" SelectedIndex="0" SelectionChanged="SortComboBox_SelectionChanged">
                             <ComboBoxItem Content="{DynamicResource TxtSortNewest}"/>
@@ -317,12 +324,15 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,10,0">
-                            <Button x:Name="PlayPauseButton" Content="⏸" Width="35" Height="35" Margin="5,0,0,0" Background="Transparent" BorderThickness="0" Foreground="White" FontSize="18" Click="PlayPauseButton_Click"/>
-                            <Button x:Name="PlayFromSelectionButton" Content="⏮" ToolTip="Play from selection" Width="35" Height="35" Margin="0,0,0,0" Background="Transparent" BorderThickness="0" Foreground="White" FontSize="18" Click="PlayFromSelectionButton_Click"/>
+                            <Button x:Name="PlayPauseButton" Width="40" Height="40" Margin="5,0,0,0" Background="Transparent" BorderThickness="0" Click="PlayPauseButton_Click" Padding="4">
+                                <Image Source="/Images/play.png" Stretch="Uniform"/>
+                            </Button>
+                            <Button x:Name="PlayFromSelectionButton" ToolTip="Play from selection" Width="40" Height="40" Margin="0,0,0,0" Background="Transparent" BorderThickness="0" Click="PlayFromSelectionButton_Click" Padding="4">
+                                <Image Source="/Images/play_selection.png" Stretch="Uniform"/>
+                            </Button>
                         </StackPanel>
                         <TextBlock x:Name="TimeDisplay" Grid.Column="1" Text="00:00.00 / 00:00" Foreground="White" VerticalAlignment="Center" Margin="0,0,15,0" Width="110"/>
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,15,0" VerticalAlignment="Center">
-                            <TextBlock x:Name="TrimText" Text="00:00 - End" Foreground="#FFD700" VerticalAlignment="Center" Margin="0,0,10,0" Width="85" TextAlignment="Center"/>
                             <Button x:Name="BtnPerformCut" Content="{DynamicResource TxtCutBtn}" Width="70" Click="BtnCut_Click" Background="#8B0000" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
                         </StackPanel>
                         <Grid Grid.Column="3" VerticalAlignment="Center" Margin="0,0,15,0">
@@ -347,7 +357,7 @@
                             </Canvas>
                         </Grid>
                         <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="0,0,15,0">
-                            <TextBlock Text="🔊" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <Image Source="/Images/volume.png" Width="16" Height="16" Margin="0,0,5,0" VerticalAlignment="Center"/>
                             <Slider x:Name="VolumeSlider" Width="70" VerticalAlignment="Center" Minimum="0" Maximum="100" Value="100" ValueChanged="VolumeSlider_ValueChanged"/>
                         </StackPanel>
                         <StackPanel Grid.Column="5" Orientation="Horizontal" Margin="0,0,5,0">

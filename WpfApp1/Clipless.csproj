@@ -15,6 +15,7 @@
     <None Remove="icon.png" />
     <None Remove="logo.png" />
     <None Remove="shot.wav" />
+    <None Remove="Images\**\*.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -32,6 +33,7 @@
     <Resource Include="icon.png" />
     <Resource Include="logo.png" />
     <Resource Include="shot.wav" />
+    <Resource Include="Images\**\*.png" />
   </ItemGroup>
 
 </Project>

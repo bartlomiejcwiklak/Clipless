@@ -685,12 +685,12 @@ namespace ClipManager
                 var favTag = SpecialTagsList.FirstOrDefault(t => t.Id == "FAVORITES_SPECIAL_TAG");
                 if (favTag != null)
                 {
-                    favTag.Name = $"⭐ {GetString("TxtFavorites")}";
+                    favTag.Name = GetString("TxtFavorites");
                 }
                 var homeTag = SpecialTagsList.FirstOrDefault(t => t.Id == "HOME_SPECIAL_TAG");
                 if (homeTag != null)
                 {
-                    homeTag.Name = $"🏠 {GetString("TxtHome") ?? "Home"}";
+                    homeTag.Name = GetString("TxtHome") ?? "Home";
                 }
 
                 if (GameFolderList.SelectedItem is GameFolder selectedFolder)
@@ -716,8 +716,8 @@ namespace ClipManager
         private void LoadSettings()
         {
             SpecialTagsList.Clear();
-            SpecialTagsList.Add(new ClipTag { Id = "HOME_SPECIAL_TAG", Name = $"🏠 {GetString("TxtHome") ?? "Home"}", Color = "Transparent" });
-            SpecialTagsList.Add(new ClipTag { Id = "FAVORITES_SPECIAL_TAG", Name = $"⭐ {GetString("TxtFavorites")}", Color = "Transparent" });
+            SpecialTagsList.Add(new ClipTag { Id = "HOME_SPECIAL_TAG", Name = GetString("TxtHome") ?? "Home", Color = "Transparent", IconPath = "/Images/home.png" });
+            SpecialTagsList.Add(new ClipTag { Id = "FAVORITES_SPECIAL_TAG", Name = GetString("TxtFavorites"), Color = "Transparent", IconPath = "/Images/star_filled.png" });
 
             TagsList.Clear();
             if (File.Exists(_tagsFilePath))
@@ -1581,6 +1581,18 @@ namespace ClipManager
             }));
         }
 
+        private void UpdatePlayPauseIcon(bool isPlaying)
+        {
+            Dispatcher.BeginInvoke(new Action(() => {
+                if (PlayPauseButton.Content is System.Windows.Controls.Image img)
+                {
+                    try {
+                        img.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(isPlaying ? "pack://application:,,,/Images/pause.png" : "pack://application:,,,/Images/play.png"));
+                    } catch {}
+                }
+            }));
+        }
+
         private void MainWindow_PreviewKeyDown(
             object sender, System.Windows.Input.KeyEventArgs e)
         {
@@ -1634,7 +1646,7 @@ namespace ClipManager
             else if (e.Key == System.Windows.Input.Key.OemComma)
             {
                 e.Handled = true;
-                if (_mediaPlayer.IsPlaying) { _mediaPlayer.Pause(); PlayPauseButton.Content = "▶️"; }
+                if (_mediaPlayer.IsPlaying) { _mediaPlayer.Pause(); UpdatePlayPauseIcon(false); }
                 long newTime = (long)Math.Max(0, _mediaPlayer.Time - 33);
                 _mediaPlayer.Time = newTime;
                 _isUpdatingFromPlayer = true;
@@ -1645,7 +1657,7 @@ namespace ClipManager
             else if (e.Key == System.Windows.Input.Key.OemPeriod)
             {
                 e.Handled = true;
-                if (_mediaPlayer.IsPlaying) { _mediaPlayer.Pause(); PlayPauseButton.Content = "▶️"; }
+                if (_mediaPlayer.IsPlaying) { _mediaPlayer.Pause(); UpdatePlayPauseIcon(false); }
                 if (_mediaPlayer.Length - _mediaPlayer.Time > 16)
                 {
                     long oldTime = _mediaPlayer.Time;
@@ -1778,7 +1790,6 @@ namespace ClipManager
                 _currentClip = clip;
                 _trimStartMs = 0;
                 _trimEndMs = _videoDurationMs;
-                TrimText.Text = $"00:00 - {GetString("TxtEnd")}";
                 _isUpdatingFromPlayer = true;
                 ProgressSlider.Value = 0;
                 _isUpdatingFromPlayer = false;
@@ -1792,7 +1803,7 @@ namespace ClipManager
                 await Task.Delay(100);
                 VideoPlayer.MediaPlayer = null;
                 VideoPlayer.MediaPlayer = _mediaPlayer;
-                PlayPauseButton.Content = "II";
+                UpdatePlayPauseIcon(true);
                 _mediaPlayer.Play(new Media(_libVLC, new Uri(clip.FullPath)));
                 if (VolumeSlider != null) _mediaPlayer.Volume = (int)VolumeSlider.Value;
             }
@@ -1842,7 +1853,7 @@ namespace ClipManager
         private void MediaPlayer_EndReached(object sender, EventArgs e)
         {
             Dispatcher.BeginInvoke(new Action(() => {
-                PlayPauseButton.Content = "▶️";
+                UpdatePlayPauseIcon(false);
             }));
         }
 
@@ -1855,7 +1866,7 @@ namespace ClipManager
                 if (_wasPlayingBeforeScrub)
                 {
                     _mediaPlayer.Pause();
-                    PlayPauseButton.Content = "▶️";
+                    UpdatePlayPauseIcon(false);
                 }
             }
         }
@@ -1871,7 +1882,7 @@ namespace ClipManager
                 if (_wasPlayingBeforeScrub)
                 {
                     _mediaPlayer.Play();
-                    PlayPauseButton.Content = "II";
+                    UpdatePlayPauseIcon(true);
                 }
             }
         }
@@ -1887,7 +1898,7 @@ namespace ClipManager
                     {
                         var m = new Media(_libVLC, new Uri(_currentClip.FullPath));
                         _mediaPlayer.Play(m);
-                        PlayPauseButton.Content = "II";
+                        UpdatePlayPauseIcon(true);
                     }
                 }
                 long t = (long)Math.Max(0, Math.Min(_mediaPlayer.Length > 1000 ? _mediaPlayer.Length - 1000 : 0, (long)e.NewValue));
@@ -1958,7 +1969,7 @@ namespace ClipManager
                 }
             }
 
-            PlayPauseButton.Content = "II";
+            UpdatePlayPauseIcon(true);
         }
 
         private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
@@ -1971,7 +1982,7 @@ namespace ClipManager
                 if (_currentClip != null)
                 {
                     _mediaPlayer.Play(new Media(_libVLC, new Uri(_currentClip.FullPath)));
-                    PlayPauseButton.Content = "II";
+                    UpdatePlayPauseIcon(true);
                 }
                 return;
             }
@@ -1979,7 +1990,7 @@ namespace ClipManager
             if (_mediaPlayer.IsPlaying)
             {
                 _mediaPlayer.Pause();
-                PlayPauseButton.Content = "▶️";
+                UpdatePlayPauseIcon(false);
             }
             else
             {
@@ -1988,7 +1999,7 @@ namespace ClipManager
                     _mediaPlayer.Time = 0;
                 }
                 _mediaPlayer.Play();
-                PlayPauseButton.Content = "II";
+                UpdatePlayPauseIcon(true);
             }
         }
 
@@ -2028,8 +2039,6 @@ namespace ClipManager
         {
             if (TrimCanvas.ActualWidth == 0 || _videoDurationMs <= 1)
                 return;
-            TrimText.Text =
-                $"{TimeSpan.FromMilliseconds(_trimStartMs):mm\\:ss} - {(_trimEndMs == _videoDurationMs ? GetString("TxtEnd") : TimeSpan.FromMilliseconds(_trimEndMs).ToString("mm\\:ss"))}";
             double sx = (_trimStartMs / (double)_videoDurationMs) *
                         TrimCanvas.ActualWidth,
                    ex = (_trimEndMs / (double)_videoDurationMs) *
@@ -2309,7 +2318,11 @@ namespace ClipManager
                                                    GetString("TxtInvalidCutTitle"));
                 return;
             }
-            _mediaPlayer.Pause();
+            if (_mediaPlayer.IsPlaying)
+            {
+                _mediaPlayer.Pause();
+                UpdatePlayPauseIcon(false);
+            }
             VideoPlayer.Visibility = Visibility.Hidden;
             var res = await ShowSaveConfirmOverlayAsync();
             if (res == System.Windows.MessageBoxResult.Cancel)
@@ -3005,6 +3018,22 @@ namespace ClipManager
                 }
             }
         }
+
+        private string _iconPath;
+        public string IconPath
+        {
+            get => _iconPath;
+            set
+            {
+                if (_iconPath != value)
+                {
+                    _iconPath = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged("HasIcon");
+                }
+            }
+        }
+        public bool HasIcon => !string.IsNullOrEmpty(_iconPath);
 
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string n = null) =>
