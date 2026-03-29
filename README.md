@@ -6,9 +6,11 @@
 - Trim a video clip of your gaming moment
 - Either replace or create a new video file
 - Optimize the clips to easily send them on chat apps like Discord
+  - App can automatically compress the clip without changing the resolution/framerate
+  - Smart calculation of output file size (make the clip less than 10MB)
 - Manage your clip folders
 - Play your clips smoothly
-- Sort your clips by date
+- Sort your clips by date/file size
 - Available in English and Polish
 
 ### Credits:
