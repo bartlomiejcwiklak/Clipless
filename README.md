@@ -4,6 +4,9 @@
 
 <img width="2560" height="720" alt="screens" src="https://github.com/user-attachments/assets/fb9373c6-6c95-4046-ab74-c296f7591271" />
 
+## About
+A piece of software born out of frustration with the highly unreliable NVIDIA App- meet **Clipless**!
+
 ## Features
 ### Background Recording & Capture
 - **Continuous Buffer Recording**: Uses FFmpeg to continuously record a rolling background buffer (up to 30 minutes) so you never miss a moment.
