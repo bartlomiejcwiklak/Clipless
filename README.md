@@ -9,9 +9,11 @@
 - Smooth clip playback
 - Sort your clips by date
 - Available in English and Polish
-
-### Roadmap:
-- Optimize the clips via compression to easily send them on chat apps like Discord
+- Optimize the clips to easily send them on chat apps like Discord
+- 
 
 ### Credits:
+Made by ohhbaro
+Tested by Liify
+
 This project uses LibVLCSharp by videolan, FFmpeg by ffmpeg and WPF-UI by lepoco.
