@@ -9,21 +9,26 @@
     <system:String x:Key="TxtSortNewest">Newest First</system:String>
     <system:String x:Key="TxtSortOldest">Oldest First</system:String>
     <system:String x:Key="TxtSortAlpha">Alphabetical</system:String>
+    <system:String x:Key="TxtSortSize">Largest First</system:String>
+    <system:String x:Key="TxtSortSizeAsc">Smallest First</system:String>
     <system:String x:Key="TxtBackToClips">← Back to Clips</system:String>
     <system:String x:Key="TxtCutBtn">✂ Cut</system:String>
 
     <system:String x:Key="TxtSaveCutClip">Save Cut Clip</system:String>
     <system:String x:Key="TxtReplaceExisting">Do you want to REPLACE the existing file?</system:String>
+    <system:String x:Key="TxtOptimize">Optimize to under</system:String>
+    <system:String x:Key="TxtNormalizeAudio">Normalize Audio</system:String>
     <system:String x:Key="TxtReplaceOriginal">Replace Original</system:String>
     <system:String x:Key="TxtSaveAsNew">Save as New</system:String>
     <system:String x:Key="TxtCancel">Cancel</system:String>
     <system:String x:Key="TxtCuttingVideo">✂️ Cutting Video...</system:String>
 
-    <system:String x:Key="TxtAppInfo">⚙️ App Information</system:String>
-    <system:String x:Key="TxtAppDesc">A lightning-fast, custom-built media manager.</system:String>
+    <system:String x:Key="TxtAppInfo">⚙️ Settings &amp; info</system:String>
+    <system:String x:Key="TxtAppDesc">Turbo fast clip manager for games</system:String>
     <system:String x:Key="TxtPoweredBy">Powered By:</system:String>
-    <system:String x:Key="TxtClose">Close</system:String>
+    <system:String x:Key="TxtSaveAndClose">Save &amp; Close</system:String>
     <system:String x:Key="TxtLanguage">Language:</system:String>
+    <system:String x:Key="TxtFavorites">Favorites</system:String>
 
     <system:String x:Key="TxtFolderNotFoundTitle">Folder Not Found</system:String>
     <system:String x:Key="TxtFolderNotFound">Could not find the Captures folder at:</system:String>
@@ -37,9 +42,17 @@
     <system:String x:Key="TxtErrorCutting">Error cutting video:</system:String>
 
     <system:String x:Key="TxtClipFolder">Clip Folder Location:</system:String>
+    <system:String x:Key="TxtOutputFolder">Save Output To:</system:String>
+    <system:String x:Key="TxtTargetSize">Target File Size:</system:String>
+    <system:String x:Key="TxtSameAsSource">Same as source folder</system:String>
     <system:String x:Key="TxtBrowse">Browse...</system:String>
     <system:String x:Key="TxtRefresh">Refresh Folders</system:String>
     <system:String x:Key="TxtCreator">Made with love by:</system:String>
+
+    <system:String x:Key="TxtRenderEngine">Video Encoder:</system:String>
+    <system:String x:Key="TxtAutoDelete">Auto-delete old clips (ignores favorites)</system:String>
+    <system:String x:Key="TxtOlderThan">Delete clips older than:</system:String>
+    <system:String x:Key="TxtWeeks">weeks</system:String>
 
     <system:String x:Key="TxtCopy">Copy</system:String>
     <system:String x:Key="TxtCut">Cut</system:String>
@@ -58,4 +71,42 @@
     <system:String x:Key="TxtConfirmDeleteFolder">Are you sure you want to delete this folder and ALL its clips?</system:String>
     <system:String x:Key="TxtNoFolderSelected">Please select a folder</system:String>
 
+    <system:String x:Key="TxtTags">TAGS</system:String>
+    <system:String x:Key="TxtCreateTag">Create Tag</system:String>
+    <system:String x:Key="TxtTagWith">Tags</system:String>
+    <system:String x:Key="TxtCreateTagTitle">New Tag</system:String>
+    <system:String x:Key="TxtTagColor">Tag Color:</system:String>
+
+    <system:String x:Key="TxtStatusReady">Ready</system:String>
+    <system:String x:Key="TxtStatusReadyToClip">Ready to clip</system:String>
+    <system:String x:Key="TxtStatusBgRecDisabled">Background recording disabled</system:String>
+    <system:String x:Key="TxtStatusSaving">Saving clip, please wait...</system:String>
+    <system:String x:Key="TxtStatusClipSaved">Clip saved:</system:String>
+    <system:String x:Key="TxtStatusSaveError">Error saving clip.</system:String>
+
+    <system:String x:Key="TxtGeneral">General</system:String>
+    <system:String x:Key="TxtStartWithWindows">Start with Windows</system:String>
+    <system:String x:Key="TxtStorageLibrary">Storage &amp; Library</system:String>
+    <system:String x:Key="TxtClippingExport">Clipping &amp; Export</system:String>
+    <system:String x:Key="TxtNormalizeAudioClip">Normalize Audio when Saving Clip</system:String>
+    <system:String x:Key="TxtBackgroundRecording">Background Recording</system:String>
+    <system:String x:Key="TxtShortcutSaveClip">Shortcut to Save Clip</system:String>
+    <system:String x:Key="TxtEnableBackgroundRecording">Enable Background Recording</system:String>
+    <system:String x:Key="TxtMonitor">Monitor</system:String>
+    <system:String x:Key="TxtBufferSize">Buffer Size (Minutes)</system:String>
+    <system:String x:Key="TxtResolution">Resolution</system:String>
+    <system:String x:Key="TxtNative">Native</system:String>
+    <system:String x:Key="TxtFramerate">Framerate</system:String>
+    <system:String x:Key="TxtSystemAudio">System Audio</system:String>
+    <system:String x:Key="TxtMicrophone">Microphone</system:String>
+    <system:String x:Key="TxtAbout">About</system:String>
+    <system:String x:Key="TxtNone">None</system:String>
+    <system:String x:Key="TxtDefault">Default</system:String>
+    <system:String x:Key="TxtMin">min</system:String>
+    <system:String x:Key="TxtTrayTitle">Clipless Background Recorder</system:String>
+    <system:String x:Key="TxtTraySaveClip">Save Clip</system:String>
+    <system:String x:Key="TxtTrayOpen">Open Clipless</system:String>
+    <system:String x:Key="TxtTrayQuit">Quit</system:String>
+    <system:String x:Key="TxtTrayRunning">Running in background. Press {0} to save a clip.</system:String>
+    <system:String x:Key="TxtTraySavedTo">Saved to</system:String>
 </ResourceDictionary>

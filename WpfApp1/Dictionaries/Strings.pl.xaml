@@ -9,11 +9,15 @@
     <system:String x:Key="TxtSortNewest">Najnowszych</system:String>
     <system:String x:Key="TxtSortOldest">Najstarszych</system:String>
     <system:String x:Key="TxtSortAlpha">Alfabetycznie</system:String>
+    <system:String x:Key="TxtSortSize">Największych</system:String>
+    <system:String x:Key="TxtSortSizeAsc">Najmniejszych</system:String>
     <system:String x:Key="TxtBackToClips">← Wróć do klipów</system:String>
     <system:String x:Key="TxtCutBtn">✂ Tnij</system:String>
 
     <system:String x:Key="TxtSaveCutClip">Zapisz klip</system:String>
     <system:String x:Key="TxtReplaceExisting">Czy chcesz nadpisać istniejący plik?</system:String>
+    <system:String x:Key="TxtOptimize">Zoptymalizuj poniżej</system:String>
+    <system:String x:Key="TxtNormalizeAudio">Normalizuj dźwięk</system:String>
     <system:String x:Key="TxtReplaceOriginal">Nadpisz</system:String>
     <system:String x:Key="TxtSaveAsNew">Utwórz nowy</system:String>
     <system:String x:Key="TxtCancel">Anuluj</system:String>
@@ -22,8 +26,9 @@
     <system:String x:Key="TxtAppInfo">⚙️ Ustawienia &amp; informacje</system:String>
     <system:String x:Key="TxtAppDesc">Turbo szybki manager klipów do gier</system:String>
     <system:String x:Key="TxtPoweredBy">Licencje:</system:String>
-    <system:String x:Key="TxtClose">Zamknij</system:String>
+    <system:String x:Key="TxtSaveAndClose">Zapisz i Zamknij</system:String>
     <system:String x:Key="TxtLanguage">Język:</system:String>
+    <system:String x:Key="TxtFavorites">Ulubione</system:String>
 
     <system:String x:Key="TxtFolderNotFoundTitle">Folder nie znaleziony!</system:String>
     <system:String x:Key="TxtFolderNotFound">Nie można znaleźć folderu NVIDIA:</system:String>
@@ -37,9 +42,17 @@
     <system:String x:Key="TxtErrorCutting">Błąd tworzenia klipu:</system:String>
 
     <system:String x:Key="TxtClipFolder">Lokalizacja folderu z klipami:</system:String>
+    <system:String x:Key="TxtOutputFolder">Zapisz wycięte do:</system:String>
+    <system:String x:Key="TxtTargetSize">Docelowy rozmiar pliku:</system:String>
+    <system:String x:Key="TxtSameAsSource">Ten sam folder co oryginał</system:String>
     <system:String x:Key="TxtBrowse">Przeglądaj...</system:String>
     <system:String x:Key="TxtRefresh">Odśwież foldery</system:String>
     <system:String x:Key="TxtCreator">Stworzony przez:</system:String>
+
+    <system:String x:Key="TxtRenderEngine">Enkoder wideo:</system:String>
+    <system:String x:Key="TxtAutoDelete">Automatycznie usuwaj stare klipy (poza ulubionymi)</system:String>
+    <system:String x:Key="TxtOlderThan">Usuń klipy starsze niż:</system:String>
+    <system:String x:Key="TxtWeeks">tyg.</system:String>
 
     <system:String x:Key="TxtCopy">Kopiuj</system:String>
     <system:String x:Key="TxtCut">Wytnij</system:String>
@@ -58,4 +71,43 @@
     <system:String x:Key="TxtPaste">Wklej</system:String>
     <system:String x:Key="TxtConfirmDeleteFolder">Czy na pewno chcesz usunąć ten folder i WSZYSTKIE w nim klipy?</system:String>
     <system:String x:Key="TxtNoFolderSelected">Proszę wybrać folder</system:String>
+
+    <system:String x:Key="TxtTags">TAGI</system:String>
+    <system:String x:Key="TxtCreateTag">Utwórz tag</system:String>
+    <system:String x:Key="TxtTagWith">Taguj opcje</system:String>
+    <system:String x:Key="TxtCreateTagTitle">Nowy Tag</system:String>
+    <system:String x:Key="TxtTagColor">Kolor Taga:</system:String>
+
+    <system:String x:Key="TxtStatusReady">Gotowy</system:String>
+    <system:String x:Key="TxtStatusReadyToClip">Gotowy do wycinania klipów</system:String>
+    <system:String x:Key="TxtStatusBgRecDisabled">Nagrywanie w tle wyłączone</system:String>
+    <system:String x:Key="TxtStatusSaving">Zapisywanie klipu, proszę czekać...</system:String>
+    <system:String x:Key="TxtStatusClipSaved">Zapisano klip:</system:String>
+    <system:String x:Key="TxtStatusSaveError">Błąd zapisywania klipu.</system:String>
+
+    <system:String x:Key="TxtGeneral">Ogólne</system:String>
+    <system:String x:Key="TxtStartWithWindows">Uruchamiaj z systemem Windows</system:String>
+    <system:String x:Key="TxtStorageLibrary">Pamięć i Biblioteka</system:String>
+    <system:String x:Key="TxtClippingExport">Wycinanie i Eksport</system:String>
+    <system:String x:Key="TxtNormalizeAudioClip">Normalizuj dźwięk przy zapisie klipu</system:String>
+    <system:String x:Key="TxtBackgroundRecording">Nagrywanie w tle</system:String>
+    <system:String x:Key="TxtShortcutSaveClip">Skrót do zapisywania klipu</system:String>
+    <system:String x:Key="TxtEnableBackgroundRecording">Włącz nagrywanie w tle</system:String>
+    <system:String x:Key="TxtMonitor">Monitor</system:String>
+    <system:String x:Key="TxtBufferSize">Rozmiar bufora (w minutach)</system:String>
+    <system:String x:Key="TxtResolution">Rozdzielczość</system:String>
+    <system:String x:Key="TxtNative">Natywna</system:String>
+    <system:String x:Key="TxtFramerate">Klatki na sekundę</system:String>
+    <system:String x:Key="TxtSystemAudio">Dźwięk systemowy</system:String>
+    <system:String x:Key="TxtMicrophone">Mikrofon</system:String>
+    <system:String x:Key="TxtAbout">O programie</system:String>
+    <system:String x:Key="TxtNone">Brak</system:String>
+    <system:String x:Key="TxtDefault">Domyślne</system:String>
+    <system:String x:Key="TxtMin">min</system:String>
+    <system:String x:Key="TxtTrayTitle">Clipless (Nagrywanie w tle)</system:String>
+    <system:String x:Key="TxtTraySaveClip">Zapisz Klip</system:String>
+    <system:String x:Key="TxtTrayOpen">Otwórz Clipless</system:String>
+    <system:String x:Key="TxtTrayQuit">Wyjdź</system:String>
+    <system:String x:Key="TxtTrayRunning">Działa w tle. Naciśnij {0} aby zapisać klip.</system:String>
+    <system:String x:Key="TxtTraySavedTo">Zapisano do</system:String>
 </ResourceDictionary>

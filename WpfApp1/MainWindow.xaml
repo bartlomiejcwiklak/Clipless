@@ -21,9 +21,10 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="Clipless" />
+        <ui:TitleBar Grid.Row="0" Title="Clipless" Icon="icon.ico" />
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
@@ -34,17 +35,73 @@
             <Border Grid.Column="0" Background="#1A1A1A" Opacity="0.8" Padding="10">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0" Margin="5,0,0,10">
-                        <TextBlock Text="{DynamicResource TxtGameFolders}" Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <Grid Grid.Row="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*" x:Name="TagsListRow"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*" x:Name="FoldersListRow"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="5,0,0,10">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Cursor="Hand" MouseDown="BtnToggleTags_Click" Background="Transparent" MinWidth="100">
+                            <TextBlock x:Name="TxtTagsArrow" Text="▼ " Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource TxtTags}" Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Button x:Name="BtnCreateTag" Content="➕" Background="Transparent" Foreground="Gray" BorderThickness="0" FontSize="14" HorizontalAlignment="Right" Padding="5,0,5,0" Click="BtnCreateTag_Click" ToolTip="{DynamicResource TxtCreateTag}"/>
+                    </Grid>
+
+                    <ListBox Grid.Row="1" x:Name="TagsListBox" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="TagsListBox_SelectionChanged">
+                        <ListBox.Resources>
+                            <ContextMenu x:Key="TagItemContextMenu">
+                                <s:MenuItem Header="{DynamicResource TxtDelete}" Foreground="Red" Click="MenuTagDelete_Click"/>
+                            </ContextMenu>
+                        </ListBox.Resources>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Padding" Value="8,2" />
+                                <Setter Property="MinHeight" Value="24" />
+                                <EventSetter Event="PreviewMouseRightButtonDown" Handler="TagsListBox_PreviewMouseRightButtonDown"/>
+                                <Setter Property="ContextMenu" Value="{StaticResource TagItemContextMenu}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Id}" Value="FAVORITES_SPECIAL_TAG">
+                                        <Setter Property="Margin" Value="0,0,0,12" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0">
+                                        <TextBlock Text="●" Foreground="{Binding Color}" FontSize="18" Margin="0,-3,8,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Name}" Margin="0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <Border x:Name="FavSeparator" Height="1" Background="#444444" Margin="-8,10,-8,-11" Visibility="Collapsed" />
+                                </StackPanel>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Id}" Value="FAVORITES_SPECIAL_TAG">
+                                        <Setter TargetName="FavSeparator" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Grid Grid.Row="2" Margin="5,15,0,10">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Cursor="Hand" MouseDown="BtnToggleFolders_Click" Background="Transparent" MinWidth="100">
+                            <TextBlock x:Name="TxtFoldersArrow" Text="▼ " Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            <TextBlock Text="{DynamicResource TxtGameFolders}" Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
                         <Button x:Name="BtnCreateFolder" Content="➕" Background="Transparent" Foreground="Gray" BorderThickness="0" FontSize="14" HorizontalAlignment="Right" Padding="5,0,5,0" Click="BtnCreateFolder_Click" ToolTip="{DynamicResource TxtCreateFolder}"/>
                     </Grid>
 
-                    <ListBox Grid.Row="1" x:Name="GameFolderList" Background="Transparent" BorderThickness="0" DisplayMemberPath="Name" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="GameFolderList_SelectionChanged">
+                    <ListBox Grid.Row="3" x:Name="GameFolderList" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="GameFolderList_SelectionChanged">
                         <ListBox.Resources>
                             <ContextMenu x:Key="FolderItemContextMenu">
                                 <s:MenuItem Header="{DynamicResource TxtPaste}" Click="MenuFolderPaste_Click"/>
@@ -56,13 +113,23 @@
 
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Padding" Value="8,2" />
+                                <Setter Property="MinHeight" Value="24" />
                                 <EventSetter Event="PreviewMouseRightButtonDown" Handler="GameFolderList_PreviewMouseRightButtonDown"/>
                                 <Setter Property="ContextMenu" Value="{StaticResource FolderItemContextMenu}"/>
                             </Style>
                         </ListBox.ItemContainerStyle>
-                    </ListBox>
 
-                    <Button Grid.Row="2" x:Name="BtnSettings" Content="{DynamicResource TxtSettingsBtn}" Background="#222222" Foreground="White" BorderThickness="0" HorizontalAlignment="Stretch" Margin="0,10,0,0" Padding="5" Click="BtnSettings_Click" />
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" Margin="0,2" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    </Grid>
+
+                    <Button Grid.Row="1" x:Name="BtnSettings" Content="{DynamicResource TxtSettingsBtn}" Background="#222222" Foreground="White" BorderThickness="0" HorizontalAlignment="Stretch" Margin="0,10,0,0" Padding="5" Click="BtnSettings_Click" VerticalAlignment="Bottom" />
                 </Grid>
             </Border>
 
@@ -85,14 +152,21 @@
                             <ComboBoxItem Content="{DynamicResource TxtSortNewest}"/>
                             <ComboBoxItem Content="{DynamicResource TxtSortOldest}"/>
                             <ComboBoxItem Content="{DynamicResource TxtSortAlpha}"/>
+                            <ComboBoxItem Content="{DynamicResource TxtSortSize}"/>
+                            <ComboBoxItem Content="{DynamicResource TxtSortSizeAsc}"/>
                         </ComboBox>
                     </StackPanel>
                 </Grid>
 
-                <TextBlock Grid.Row="1" x:Name="TxtNoFolderMessage" Text="{DynamicResource TxtNoFolderSelected}" Foreground="Gray" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Visible"/>
+                <StackPanel Grid.Row="1" x:Name="TxtNoFolderMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Visible">
+                    <Image Source="logo.png" MaxWidth="300" MaxHeight="300" Margin="0,0,0,15" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <TextBlock Text="{DynamicResource TxtNoFolderSelected}" Foreground="Gray" FontSize="16" HorizontalAlignment="Center"/>
+                </StackPanel>
                 <ListBox Grid.Row="1" x:Name="ClipList" Background="Transparent" BorderThickness="0" Margin="0" SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="ClipList_MouseDoubleClick">
                     <ListBox.ContextMenu>
                         <ContextMenu>
+                            <s:MenuItem x:Name="MenuTagClip" Header="{DynamicResource TxtTagWith}" />
+                            <Separator/>
                             <s:MenuItem Header="{DynamicResource TxtCopy}" Click="MenuCopy_Click"/>
                             <s:MenuItem Header="{DynamicResource TxtCut}" Click="MenuCut_Click"/>
                             <s:MenuItem Header="{DynamicResource TxtPaste}" Click="MenuClipPaste_Click"/>
@@ -116,7 +190,7 @@
                     </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Border Width="220" Margin="0" Background="#222222" CornerRadius="4" Padding="5">
+                            <Border Width="220" Margin="0" Background="#222222" CornerRadius="4" Padding="5" MouseEnter="Clip_MouseEnter" MouseLeave="Clip_MouseLeave">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
@@ -124,8 +198,45 @@
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <Image Grid.Row="0" Source="{Binding Thumbnail}" Height="120" Stretch="UniformToFill" Margin="0,0,0,5" />
+                                    <ToggleButton Grid.Row="0" IsChecked="{Binding IsFavorite}" Click="Favorite_Click" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="5" Background="Transparent" BorderThickness="0" FontSize="20" Padding="0">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton">
+                                                <Setter Property="Content" Value="☆" />
+                                                <Setter Property="Foreground" Value="White" />
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ToggleButton">
+                                                            <Border Background="Transparent">
+                                                                <TextBlock Text="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" FontSize="{TemplateBinding FontSize}" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                                    <TextBlock.Effect>
+                                                                        <DropShadowEffect ShadowDepth="0" Color="Black" BlurRadius="5" Opacity="0.8"/>
+                                                                    </TextBlock.Effect>
+                                                                </TextBlock>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Setter Property="Content" Value="★" />
+                                                        <Setter Property="Foreground" Value="#FFD700" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Cursor" Value="Hand" />
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
                                     <TextBlock Grid.Row="1" Text="{Binding Name}" Foreground="White" FontSize="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" HorizontalAlignment="Center" Margin="0,0,0,2"/>
-                                    <TextBlock Grid.Row="2" Text="{Binding CreationDate}" Foreground="#808080" FontSize="11" HorizontalAlignment="Center" Margin="0,0,0,2"/>
+                                    <Grid Grid.Row="2" Margin="0,0,0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding CreationDate}" Foreground="#808080" FontSize="11" HorizontalAlignment="Left" />
+                                        <TextBlock Grid.Column="1" Text="{Binding FileSize}" Foreground="#808080" FontSize="11" HorizontalAlignment="Right" />
+                                    </Grid>
                                 </Grid>
                             </Border>
                         </DataTemplate>
@@ -149,36 +260,42 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <Button x:Name="PlayPauseButton" Grid.Column="0" Content="⏸" Width="35" Height="35" Margin="5,0,10,0" Background="Transparent" BorderThickness="0" Foreground="White" FontSize="18" Click="PlayPauseButton_Click"/>
-                        <TextBlock x:Name="TimeDisplay" Grid.Column="1" Text="00:00 / 00:00" Foreground="White" VerticalAlignment="Center" Margin="0,0,15,0" Width="90"/>
+                        <TextBlock x:Name="TimeDisplay" Grid.Column="1" Text="00:00.00 / 00:00" Foreground="White" VerticalAlignment="Center" Margin="0,0,15,0" Width="110"/>
                         <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,15,0" VerticalAlignment="Center">
                             <TextBlock x:Name="TrimText" Text="00:00 - End" Foreground="#FFD700" VerticalAlignment="Center" Margin="0,0,10,0" Width="85" TextAlignment="Center"/>
                             <Button x:Name="BtnPerformCut" Content="{DynamicResource TxtCutBtn}" Width="70" Click="BtnCut_Click" Background="#8B0000" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
                         </StackPanel>
                         <Grid Grid.Column="3" VerticalAlignment="Center" Margin="0,0,15,0">
-                            <Slider x:Name="ProgressSlider" VerticalAlignment="Center" Minimum="0" Maximum="100" IsMoveToPointEnabled="True" ValueChanged="ProgressSlider_ValueChanged"/>
-                            <Canvas x:Name="TrimCanvas" Height="24" Margin="5,0,5,0" SizeChanged="TrimCanvas_SizeChanged">
-                                <Rectangle x:Name="TrimHighlight" Height="4" Fill="#60FFD700" Canvas.Top="10" IsHitTestVisible="False"/>
+                            <Image x:Name="WaveformImage" Height="40" Margin="5,0,5,0" Stretch="Fill" Opacity="0.5" IsHitTestVisible="False"/>
+                            <Slider x:Name="ProgressSlider" VerticalAlignment="Center" Minimum="0" Maximum="100" IsMoveToPointEnabled="True" ValueChanged="ProgressSlider_ValueChanged" Background="Transparent"/>
+                            <Canvas x:Name="TrimCanvas" Height="40" Margin="5,0,5,0" SizeChanged="TrimCanvas_SizeChanged">
+                                <Rectangle x:Name="TrimHighlight" Height="40" Fill="#40FFD700" Canvas.Top="0" IsHitTestVisible="False"/>
                                 <Thumb x:Name="ThumbStart" DragDelta="ThumbStart_DragDelta" Cursor="SizeWE" Canvas.Top="0" Canvas.Left="0">
                                     <Thumb.Template>
                                         <ControlTemplate>
-                                            <Border Width="8" Height="24" Background="#FFD700" CornerRadius="2" BorderBrush="Black" BorderThickness="1"/>
+                                            <Border Width="8" Height="40" Background="#FFD700" CornerRadius="2" BorderBrush="Black" BorderThickness="1"/>
                                         </ControlTemplate>
                                     </Thumb.Template>
                                 </Thumb>
                                 <Thumb x:Name="ThumbEnd" DragDelta="ThumbEnd_DragDelta" Cursor="SizeWE" Canvas.Top="0" Canvas.Left="100">
                                     <Thumb.Template>
                                         <ControlTemplate>
-                                            <Border Width="8" Height="24" Background="#FFD700" CornerRadius="2" BorderBrush="Black" BorderThickness="1"/>
+                                            <Border Width="8" Height="40" Background="#FFD700" CornerRadius="2" BorderBrush="Black" BorderThickness="1"/>
                                         </ControlTemplate>
                                     </Thumb.Template>
                                 </Thumb>
                             </Canvas>
                         </Grid>
-                        <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="0,0,5,0">
+                        <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="0,0,15,0">
                             <TextBlock Text="🔊" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                            <Slider x:Name="VolumeSlider" Width="100" VerticalAlignment="Center" Minimum="0" Maximum="100" Value="100" ValueChanged="VolumeSlider_ValueChanged"/>
+                            <Slider x:Name="VolumeSlider" Width="70" VerticalAlignment="Center" Minimum="0" Maximum="100" Value="100" ValueChanged="VolumeSlider_ValueChanged"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="5" Orientation="Horizontal" Margin="0,0,5,0">
+                            <TextBlock x:Name="SpeedText" Text="1.00x" Foreground="White" Width="38" TextAlignment="Right" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <Slider x:Name="SpeedSlider" Width="70" VerticalAlignment="Center" Minimum="0.25" Maximum="3" Value="1" LargeChange="0.25" SmallChange="0.1" ValueChanged="SpeedSlider_ValueChanged"/>
                         </StackPanel>
                     </Grid>
                 </Grid>
@@ -189,9 +306,11 @@
             <Border Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Padding="25" Width="380" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel>
                     <TextBlock Text="{DynamicResource TxtSaveCutClip}" Foreground="White" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,15"/>
-                    <TextBlock Text="{DynamicResource TxtReplaceExisting}" Foreground="#AAAAAA" FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,25"/>
+                    <TextBlock Text="{DynamicResource TxtReplaceExisting}" Foreground="#AAAAAA" FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                    <CheckBox x:Name="ChkOptimize" Content="{DynamicResource TxtOptimize}" Foreground="#AAAAAA" HorizontalAlignment="Center" Margin="0,0,0,5"/>
+                    <CheckBox x:Name="ChkNormalizeAudio" Content="{DynamicResource TxtNormalizeAudio}" Foreground="#AAAAAA" HorizontalAlignment="Center" Margin="0,0,0,25"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <Button x:Name="BtnReplaceOverlay" Content="{DynamicResource TxtReplaceOriginal}" Background="#8B0000" Foreground="White" BorderThickness="0" Width="120" Margin="0,0,10,0" Click="BtnReplaceOverlay_Click"/>
+                        <Button x:Name="BtnReplaceOverlay" Content="{DynamicResource TxtReplaceOriginal}" Background="#8B0000" Foreground="White" BorderThickness="0" Width="130" Margin="0,0,10,0" Click="BtnReplaceOverlay_Click"/>
                         <Button x:Name="BtnSaveNewOverlay" Content="{DynamicResource TxtSaveAsNew}" Background="#333333" Foreground="White" BorderThickness="0" Width="100" Margin="0,0,10,0" Click="BtnSaveNewOverlay_Click"/>
                         <Button x:Name="BtnCancelOverlay" Content="{DynamicResource TxtCancel}" Background="Transparent" Foreground="Gray" BorderThickness="0" Width="70" Click="BtnCancelOverlay_Click"/>
                     </StackPanel>
@@ -236,6 +355,29 @@
             </Border>
         </Grid>
 
+        <Grid x:Name="TagInputOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#CC000000" Panel.ZIndex="100">
+            <Border Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Padding="25" Width="380" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="{DynamicResource TxtCreateTagTitle}" Foreground="White" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                    <TextBlock Text="{DynamicResource TxtEnterNewName}" Foreground="#AAAAAA" FontSize="14" HorizontalAlignment="Left" Margin="0,0,0,5"/>
+                    <TextBox x:Name="TxtTagInput" Background="#111111" Foreground="White" BorderBrush="#333333" Margin="0,0,0,15"/>
+                    <TextBlock Text="{DynamicResource TxtTagColor}" Foreground="#AAAAAA" FontSize="14" HorizontalAlignment="Left" Margin="0,0,0,5"/>
+                    <ComboBox x:Name="CmbTagColor" Background="#111111" Foreground="White" BorderBrush="#333333" Margin="0,0,0,20">
+                        <ComboBoxItem Content="Red" Foreground="Red" Tag="#FF0000" IsSelected="True"/>
+                        <ComboBoxItem Content="Green" Foreground="LightGreen" Tag="#00FF00"/>
+                        <ComboBoxItem Content="Blue" Foreground="LightBlue" Tag="#0080FF"/>
+                        <ComboBoxItem Content="Yellow" Foreground="Yellow" Tag="#FFFF00"/>
+                        <ComboBoxItem Content="Purple" Foreground="MediumPurple" Tag="#A020F0"/>
+                        <ComboBoxItem Content="Orange" Foreground="Orange" Tag="#FFA500"/>
+                    </ComboBox>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Button Content="{DynamicResource TxtSave}" Background="#333333" Foreground="White" BorderThickness="0" Width="100" Margin="0,0,10,0" Click="BtnSaveTagInput_Click"/>
+                        <Button Content="{DynamicResource TxtCancel}" Background="Transparent" Foreground="Gray" BorderThickness="0" Width="70" Click="BtnCancelTagInput_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
         <Grid x:Name="FolderInputOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#CC000000" Panel.ZIndex="100">
             <Border Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Padding="25" Width="380" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel>
@@ -251,46 +393,174 @@
         </Grid>
 
         <Grid x:Name="SettingsOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#CC000000" Panel.ZIndex="100">
-            <Border Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Padding="25" Width="400" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="{DynamicResource TxtAppInfo}" Foreground="White" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,15"/>
-                    <Image Source="logo.png" Height="48" Margin="0,0,0,5" HorizontalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
-                    <TextBlock Text="{DynamicResource TxtAppDesc}" Foreground="#AAAAAA" FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,15" TextWrapping="Wrap" TextAlignment="Center"/>
-                    <Border Background="#222222" CornerRadius="4" Padding="15" Margin="0,0,0,15">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource TxtLanguage}" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
-                            <ComboBox x:Name="LanguageComboBox" Width="200" HorizontalAlignment="Left" SelectionChanged="LanguageComboBox_SelectionChanged">
-                                <ComboBoxItem Content="English (International)" Tag="en" IsSelected="True"/>
-                                <ComboBoxItem Content="Polski" Tag="pl"/>
-                            </ComboBox>
-                        </StackPanel>
-                    </Border>
-                    <Border Background="#222222" CornerRadius="4" Padding="15" Margin="0,0,0,15">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource TxtClipFolder}" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox x:Name="TxtFolderPath" Grid.Column="0" IsReadOnly="True" Margin="0,0,10,0" Foreground="White" Background="#111111" BorderThickness="1" BorderBrush="#333333" VerticalContentAlignment="Center"/>
-                                <Button Content="{DynamicResource TxtBrowse}" Grid.Column="1" Width="80" Background="#333333" Foreground="White" BorderThickness="0" Click="BtnBrowseFolder_Click"/>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-                    <Border Background="#222222" CornerRadius="4" Padding="15" Margin="0,0,0,20">
-                        <StackPanel>
-                            <TextBlock Text="{DynamicResource TxtCreator}" Foreground="Gray" FontSize="12" Margin="0,0,0,8" FontWeight="SemiBold"/>
-                            <TextBlock Text="• ohhbaro" Foreground="#DDDDDD" FontSize="13" Margin="0,2,0,12"/>
-                            <TextBlock Text="{DynamicResource TxtPoweredBy}" Foreground="Gray" FontSize="12" Margin="0,0,0,8" FontWeight="SemiBold"/>
-                            <TextBlock Text="• LibVLCSharp by videolan" Foreground="#DDDDDD" FontSize="13" Margin="0,2,0,2"/>
-                            <TextBlock Text="• FFmpeg by ffmpeg" Foreground="#DDDDDD" FontSize="13" Margin="0,2,0,2"/>
-                            <TextBlock Text="• WPF-UI by lepoco" Foreground="#DDDDDD" FontSize="13" Margin="0,2,0,2"/>
-                        </StackPanel>
-                    </Border>
-                    <Button x:Name="BtnCloseSettings" Content="{DynamicResource TxtClose}" Background="#333333" Foreground="White" BorderThickness="0" Width="100" HorizontalAlignment="Center" Click="BtnCloseSettings_Click"/>
-                </StackPanel>
+            <Border Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Width="650" MaxHeight="600" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="25">
+                        <TextBlock Text="{DynamicResource TxtAppInfo}" Foreground="White" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                        <Image Source="logo.png" Height="48" Margin="0,0,0,5" HorizontalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <TextBlock Text="{DynamicResource TxtAppDesc}" Foreground="#AAAAAA" FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,15" TextWrapping="Wrap" TextAlignment="Center"/>
+
+                        <TextBlock Text="{DynamicResource TxtGeneral}" Foreground="White" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                        <Border Background="#222222" CornerRadius="4" Padding="15" Margin="0,0,0,15">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkAutoStart" Content="{DynamicResource TxtStartWithWindows}" Foreground="White" Margin="0,0,0,15" Checked="ChkAutoStart_Changed" Unchecked="ChkAutoStart_Changed"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="{DynamicResource TxtLanguage}" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                                        <ComboBox x:Name="LanguageComboBox" HorizontalAlignment="Stretch" SelectionChanged="LanguageComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="English (International)" Tag="en" IsSelected="True"/>
+                                            <ComboBoxItem Content="Polski" Tag="pl"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                        <TextBlock Text="{DynamicResource TxtRenderEngine}" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                                        <ComboBox x:Name="RenderEngineComboBox" HorizontalAlignment="Stretch" SelectionChanged="RenderEngineComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="CPU (libx264)"/>
+                                            <ComboBoxItem Content="GPU (h264_nvenc)"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="{DynamicResource TxtStorageLibrary}" Foreground="White" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                        <Border Background="#222222" CornerRadius="4" Padding="15" Margin="0,0,0,15">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource TxtClipFolder}" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                                <Grid Margin="0,0,0,15">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtFolderPath" Grid.Column="0" IsReadOnly="True" Margin="0,0,10,0" Foreground="White" Background="#111111" BorderThickness="1" BorderBrush="#333333" VerticalContentAlignment="Center"/>
+                                    <Button Content="{DynamicResource TxtBrowse}" Grid.Column="1" Width="80" Background="#333333" Foreground="White" BorderThickness="0" Click="BtnBrowseFolder_Click"/>
+                                </Grid>
+
+                                <TextBlock Text="{DynamicResource TxtOutputFolder}" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                                <Grid Margin="0,0,0,15">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtOutputFolderPath" Grid.Column="0" IsReadOnly="True" Margin="0,0,10,0" Foreground="White" Background="#111111" BorderThickness="1" BorderBrush="#333333" VerticalContentAlignment="Center"/>
+                                    <Button Content="✖" Grid.Column="1" Width="30" Margin="0,0,5,0" Background="#333333" Foreground="White" BorderThickness="0" Click="BtnClearOutputFolder_Click" ToolTip="{DynamicResource TxtSameAsSource}"/>
+                                    <Button Content="{DynamicResource TxtBrowse}" Grid.Column="2" Width="80" Background="#333333" Foreground="White" BorderThickness="0" Click="BtnBrowseOutputFolder_Click"/>
+                                </Grid>
+
+                                <CheckBox x:Name="ChkAutoDelete" Content="{DynamicResource TxtAutoDelete}" Foreground="White" Margin="0,0,0,5" Checked="ChkAutoDelete_Changed" Unchecked="ChkAutoDelete_Changed"/>
+                                <TextBlock Text="{DynamicResource TxtOlderThan}" Foreground="Gray" FontSize="12" Margin="0,5,0,5" FontWeight="SemiBold"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="AutoDeleteSlider" Grid.Column="0" IsEnabled="{Binding ElementName=ChkAutoDelete, Path=IsChecked}" Minimum="1" Maximum="12" Value="4" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" Margin="0,0,10,0" ValueChanged="AutoDeleteSlider_ValueChanged"/>
+                                    <TextBlock x:Name="TxtAutoDeleteValue" Grid.Column="1" Text="4 weeks" Foreground="White" Width="60" TextAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="{DynamicResource TxtClippingExport}" Foreground="White" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                        <Border Background="#222222" CornerRadius="4" Padding="15" Margin="0,0,0,15">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource TxtTargetSize}" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="TargetSizeSlider" Grid.Column="0" Minimum="1" Maximum="100" Value="10" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" Margin="0,0,10,0" ValueChanged="TargetSizeSlider_ValueChanged"/>
+                                    <TextBlock x:Name="TxtTargetSizeValue" Grid.Column="1" Text="10 MB" Foreground="White" Width="50" TextAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+                                <CheckBox x:Name="ChkNormalizeOnClip" Content="{DynamicResource TxtNormalizeAudioClip}" Foreground="White" Checked="ChkNormalizeOnClip_Changed" Unchecked="ChkNormalizeOnClip_Changed"/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="{DynamicResource TxtBackgroundRecording}" Foreground="White" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                        <Border Background="#222222" CornerRadius="4" Padding="15" Margin="0,0,0,15">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource TxtShortcutSaveClip}" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                                <TextBox x:Name="TxtSaveHotkey" Text="Ctrl + Shift + S" IsReadOnly="True" Foreground="White" Background="#333" BorderThickness="0" Padding="5" Margin="0,0,0,15" PreviewKeyDown="TxtSaveHotkey_PreviewKeyDown"/>
+
+                                <CheckBox x:Name="ChkRecordEnabled" Content="{DynamicResource TxtEnableBackgroundRecording}" Foreground="White" Margin="0,0,0,10" Checked="ChkRecordEnabled_Changed" Unchecked="ChkRecordEnabled_Changed"/>
+
+                                <TextBlock Text="{DynamicResource TxtMonitor}" Foreground="Gray" FontSize="12" Margin="0,5,0,5" FontWeight="SemiBold"/>
+                                <ComboBox x:Name="MonitorComboBox" HorizontalAlignment="Stretch" Margin="0,0,0,15" DisplayMemberPath="Name" SelectionChanged="MonitorComboBox_SelectionChanged" />
+
+                                <TextBlock Text="{DynamicResource TxtBufferSize}" Foreground="Gray" FontSize="12" Margin="0,5,0,5" FontWeight="SemiBold"/>
+                                <Grid Margin="0,0,0,15">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider x:Name="BufferMinutesSlider" Grid.Column="0" Minimum="1" Maximum="30" Value="5" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" Margin="0,0,10,0" ValueChanged="BufferMinutesSlider_ValueChanged"/>
+                                    <TextBlock x:Name="TxtBufferMinutesValue" Grid.Column="1" Text="5 min" Foreground="White" Width="60" TextAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,15">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="{DynamicResource TxtResolution}" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                                        <ComboBox x:Name="ResolutionComboBox" HorizontalAlignment="Stretch" SelectionChanged="ResolutionComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="{DynamicResource TxtNative}"/>
+                                            <ComboBoxItem Content="1080p"/>
+                                            <ComboBoxItem Content="720p"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                        <TextBlock Text="{DynamicResource TxtFramerate}" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                                        <ComboBox x:Name="FramerateComboBox" HorizontalAlignment="Stretch" SelectionChanged="FramerateComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="60 FPS"/>
+                                            <ComboBoxItem Content="30 FPS"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                                        <TextBlock Text="{DynamicResource TxtSystemAudio}" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                                        <ComboBox x:Name="AudioOutputComboBox" HorizontalAlignment="Stretch" DisplayMemberPath="Name" SelectionChanged="AudioOutputComboBox_SelectionChanged" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                                        <TextBlock Text="{DynamicResource TxtMicrophone}" Foreground="Gray" FontSize="12" Margin="0,0,0,5" FontWeight="SemiBold"/>
+                                        <ComboBox x:Name="AudioInputComboBox" HorizontalAlignment="Stretch" DisplayMemberPath="Name" SelectionChanged="AudioInputComboBox_SelectionChanged" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="{DynamicResource TxtAbout}" Foreground="White" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                        <Border Background="#222222" CornerRadius="4" Padding="15" Margin="0,0,0,20">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource TxtCreator}" Foreground="Gray" FontSize="12" Margin="0,0,0,8" FontWeight="SemiBold"/>
+                                <TextBlock Text="• ohhbaro" Foreground="#DDDDDD" FontSize="13" Margin="0,2,0,12"/>
+                                <TextBlock Text="{DynamicResource TxtPoweredBy}" Foreground="Gray" FontSize="12" Margin="0,0,0,8" FontWeight="SemiBold"/>
+                                <TextBlock Text="• LibVLCSharp by videolan" Foreground="#DDDDDD" FontSize="13" Margin="0,2,0,2"/>
+                                <TextBlock Text="• FFmpeg by ffmpeg" Foreground="#DDDDDD" FontSize="13" Margin="0,2,0,2"/>
+                                <TextBlock Text="• WPF-UI by lepoco" Foreground="#DDDDDD" FontSize="13" Margin="0,2,0,2"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Button x:Name="BtnCloseSettings" Content="{DynamicResource TxtSaveAndClose}" Background="#333333" Foreground="White" BorderThickness="0" Width="150" HorizontalAlignment="Center" Click="BtnCloseSettings_Click"/>
+                    </StackPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
+
+        <Border Grid.Row="2" Background="#1A1A1A" BorderBrush="#333333" BorderThickness="0,1,0,0" Padding="10,5">
+            <TextBlock x:Name="TxtStatusBar" Text="{DynamicResource TxtStatusReady}" Foreground="#AAAAAA" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+        </Border>
     </Grid>
 </ui:FluentWindow>
