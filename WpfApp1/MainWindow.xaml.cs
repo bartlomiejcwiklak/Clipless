@@ -1115,14 +1115,29 @@ namespace ClipManager
         {
             if (ClipList.SelectedItems.Count > 0)
             {
+                var targetTag = TagsList.FirstOrDefault(t => t.Id == tagId);
+
                 foreach(VideoClip clip in ClipList.SelectedItems)
                 {
                     if (!_clipTagMap.ContainsKey(clip.FullPath)) _clipTagMap[clip.FullPath] = new HashSet<string>();
 
                     if (_clipTagMap[clip.FullPath].Contains(tagId))
+                    {
                         _clipTagMap[clip.FullPath].Remove(tagId);
+                        if (targetTag != null)
+                        {
+                            var existing = clip.Tags.FirstOrDefault(t => t.Id == tagId);
+                            if (existing != null) clip.Tags.Remove(existing);
+                        }
+                    }
                     else
+                    {
                         _clipTagMap[clip.FullPath].Add(tagId);
+                        if (targetTag != null && !clip.Tags.Any(t => t.Id == tagId))
+                        {
+                            clip.Tags.Add(targetTag);
+                        }
+                    }
 
                     if (_clipTagMap[clip.FullPath].Count == 0)
                         _clipTagMap.Remove(clip.FullPath);
@@ -1147,12 +1162,44 @@ namespace ClipManager
             File.WriteAllLines(_clipTagsFilePath, lines);
         }
 
+        private ClipTag _tagRen;
+        private bool _isTagEditMode = false;
+
         private void BtnCreateTag_Click(object sender, RoutedEventArgs e)
         {
+            _isTagEditMode = false;
+            _tagRen = null;
+            TxtTagInputTitle.SetResourceReference(System.Windows.Controls.TextBlock.TextProperty, "TxtCreateTagTitle");
             TxtTagInput.Text = "";
+            CmbTagColor.SelectedIndex = 0;
             TagInputOverlay.Visibility = Visibility.Visible;
             VideoPlayer.Visibility = Visibility.Hidden;
             TxtTagInput.Focus();
+        }
+
+        private void MenuTagRename_Click(object sender, RoutedEventArgs e)
+        {
+            if (TagsListBox.SelectedItem is ClipTag t && t.Id != "FAVORITES_SPECIAL_TAG")
+            {
+                _isTagEditMode = true;
+                _tagRen = t;
+                TxtTagInputTitle.SetResourceReference(System.Windows.Controls.TextBlock.TextProperty, "TxtEditTagTitle");
+                TxtTagInput.Text = t.Name;
+
+                foreach (ComboBoxItem item in CmbTagColor.Items)
+                {
+                    if (item.Tag?.ToString() == t.Color)
+                    {
+                        CmbTagColor.SelectedItem = item;
+                        break;
+                    }
+                }
+
+                TagInputOverlay.Visibility = Visibility.Visible;
+                VideoPlayer.Visibility = Visibility.Hidden;
+                TxtTagInput.Focus();
+                TxtTagInput.SelectAll();
+            }
         }
 
         private void BtnSaveTagInput_Click(object sender, RoutedEventArgs e)
@@ -1161,8 +1208,17 @@ namespace ClipManager
             string color = (CmbTagColor.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "#FF0000";
             if (!string.IsNullOrWhiteSpace(name))
             {
-                TagsList.Add(new ClipTag { Name = name, Color = color });
-                SaveTags();
+                if (_isTagEditMode && _tagRen != null)
+                {
+                    _tagRen.Name = name;
+                    _tagRen.Color = color;
+                    SaveTags();
+                }
+                else
+                {
+                    TagsList.Add(new ClipTag { Name = name, Color = color });
+                    SaveTags();
+                }
             }
             TagInputOverlay.Visibility = Visibility.Collapsed;
             if (PlayerOverlay.Visibility == Visibility.Visible) VideoPlayer.Visibility = Visibility.Visible;
@@ -1205,7 +1261,7 @@ namespace ClipManager
             }
         }
 
-        private VideoClip CreateClipModel(string file, string fileCreatedStr, bool isFavorite)
+        private VideoClip CreateClipModel(string file, string fileCreatedStr, bool isFavorite, Dictionary<string, HashSet<string>> clipMapSnapshot, List<ClipTag> tagsListSnapshot)
         {
             DateTime ct = File.GetCreationTime(file);
             long fileSizeInBytes = new FileInfo(file).Length;
@@ -1213,7 +1269,7 @@ namespace ClipManager
                 ? $"{fileSizeInBytes / 1048576.0:F1} MB" 
                 : $"{fileSizeInBytes / 1024.0:F1} KB";
 
-            return new VideoClip
+            var clip = new VideoClip
             {
                 Name = Path.GetFileName(file),
                 FullPath = file,
@@ -1224,6 +1280,17 @@ namespace ClipManager
                 ActualCreationTime = ct,
                 IsFavorite = isFavorite
             };
+
+            if (clipMapSnapshot != null && tagsListSnapshot != null && clipMapSnapshot.TryGetValue(file, out var tagIds))
+            {
+                var matchingTags = tagsListSnapshot.Where(t => tagIds.Contains(t.Id));
+                foreach (var t in matchingTags)
+                {
+                    clip.Tags.Add(t);
+                }
+            }
+
+            return clip;
         }
 
         private async void TagsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1248,6 +1315,7 @@ namespace ClipManager
                 Clips.Clear();
                 var clipMapSnapshot = new Dictionary<string, HashSet<string>>(_clipTagMap);
                 var favoritesSnapshot = new HashSet<string>(_favorites);
+                var tagsListSnapshot = TagsList.ToList();
                 string fileCreatedStr = GetString("TxtFileCreated");
 
                 var result = await Task.Run(() => {
@@ -1263,7 +1331,7 @@ namespace ClipManager
                             if (File.Exists(file))
                             {
                                 validMapUpdates[file] = kvp.Value;
-                                temp.Add(CreateClipModel(file, fileCreatedStr, favoritesSnapshot.Contains(file)));
+                                temp.Add(CreateClipModel(file, fileCreatedStr, favoritesSnapshot.Contains(file), clipMapSnapshot, tagsListSnapshot));
                             }
                             else
                             {
@@ -1322,6 +1390,8 @@ namespace ClipManager
         {
             Clips.Clear();
             var favoritesSnapshot = new HashSet<string>(_favorites);
+            var clipMapSnapshot = new Dictionary<string, HashSet<string>>(_clipTagMap);
+            var tagsListSnapshot = TagsList.ToList();
             string fileCreatedStr = GetString("TxtFileCreated");
 
             var result = await Task.Run(() => {
@@ -1332,7 +1402,7 @@ namespace ClipManager
                     if (File.Exists(file))
                     {
                         validFavorites.Add(file);
-                        temp.Add(CreateClipModel(file, fileCreatedStr, true));
+                        temp.Add(CreateClipModel(file, fileCreatedStr, true, clipMapSnapshot, tagsListSnapshot));
                     }
                 }
                 return (temp, validFavorites);
@@ -1354,13 +1424,15 @@ namespace ClipManager
         {
             Clips.Clear();
             var favoritesSnapshot = new HashSet<string>(_favorites);
+            var clipMapSnapshot = new Dictionary<string, HashSet<string>>(_clipTagMap);
+            var tagsListSnapshot = TagsList.ToList();
             string fileCreatedStr = GetString("TxtFileCreated");
 
             var temp = await Task.Run(() => {
                 var list = new List<VideoClip>();
                 foreach (string file in Directory.GetFiles(path, "*.mp4"))
                 {
-                    list.Add(CreateClipModel(file, fileCreatedStr, favoritesSnapshot.Contains(file)));
+                    list.Add(CreateClipModel(file, fileCreatedStr, favoritesSnapshot.Contains(file), clipMapSnapshot, tagsListSnapshot));
                 }
                 return list;
             });
@@ -2547,11 +2619,12 @@ namespace ClipManager
                         CameraComboBox.ItemsSource = outList;
                         var found = outList.FirstOrDefault(x => x.Id == _cameraId);
                         CameraComboBox.SelectedItem = found ?? outList[0];
+                        CameraComboBox.IsEnabled = !_recordEnabled;
                     }
                     if (ChkCameraOverlay != null)
                     {
                         ChkCameraOverlay.IsChecked = _cameraOverlayEnabled;
-                        ChkCameraOverlay.IsEnabled = outList.Count > 1;
+                        ChkCameraOverlay.IsEnabled = outList.Count > 1 && !_recordEnabled;
                     }
                 });
             }
@@ -2653,6 +2726,8 @@ namespace ClipManager
                 if (FramerateComboBox != null) FramerateComboBox.IsEnabled = !_recordEnabled;
                 if (AudioOutputComboBox != null) AudioOutputComboBox.IsEnabled = !_recordEnabled;
                 if (AudioInputComboBox != null) AudioInputComboBox.IsEnabled = !_recordEnabled;
+                if (CameraComboBox != null) CameraComboBox.IsEnabled = !_recordEnabled;
+                if (ChkCameraOverlay != null) ChkCameraOverlay.IsEnabled = !_recordEnabled && CameraComboBox?.Items.Count > 1;
 
                 if (_isLoaded)
                 {
@@ -2738,6 +2813,7 @@ namespace ClipManager
         }
         public ImageSource DefaultThumbnail { get; set; }
         public ImageSource[] HoverFrames { get; set; }
+        public ObservableCollection<ClipTag> Tags { get; set; } = new ObservableCollection<ClipTag>();
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string n = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
@@ -2745,8 +2821,35 @@ namespace ClipManager
     public class ClipTag : INotifyPropertyChanged
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string Name { get; set; }
-        public string Color { get; set; }
+
+        private string _name;
+        public string Name
+        {
+            get => _name;
+            set
+            {
+                if (_name != value)
+                {
+                    _name = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _color;
+        public string Color
+        {
+            get => _color;
+            set
+            {
+                if (_color != value)
+                {
+                    _color = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string n = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));

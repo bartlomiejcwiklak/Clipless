@@ -58,6 +58,8 @@
                     <ListBox Grid.Row="1" x:Name="TagsListBox" Background="Transparent" BorderThickness="0" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="TagsListBox_SelectionChanged">
                         <ListBox.Resources>
                             <ContextMenu x:Key="TagItemContextMenu">
+                                <s:MenuItem Header="{DynamicResource TxtRename}" Click="MenuTagRename_Click"/>
+                                <Separator/>
                                 <s:MenuItem Header="{DynamicResource TxtDelete}" Foreground="Red" Click="MenuTagDelete_Click"/>
                             </ContextMenu>
                         </ListBox.Resources>
@@ -198,6 +200,25 @@
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <Image Grid.Row="0" Source="{Binding Thumbnail}" Height="120" Stretch="UniformToFill" Margin="0,0,0,5" />
+                                    <ItemsControl Grid.Row="0" ItemsSource="{Binding Tags}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="5">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Width="12" Height="12" Background="{Binding Color}" CornerRadius="2" Margin="4,0,0,0">
+                                                    <Border.Effect>
+                                                        <DropShadowEffect ShadowDepth="0" Color="Black" BlurRadius="3" Opacity="0.8"/>
+                                                    </Border.Effect>
+                                                    <ToolTipService.ToolTip>
+                                                        <ToolTip Content="{Binding Name}" />
+                                                    </ToolTipService.ToolTip>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                     <ToggleButton Grid.Row="0" IsChecked="{Binding IsFavorite}" Click="Favorite_Click" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="5" Background="Transparent" BorderThickness="0" FontSize="20" Padding="0">
                                         <ToggleButton.Style>
                                             <Style TargetType="ToggleButton">
@@ -358,7 +379,7 @@
         <Grid x:Name="TagInputOverlay" Grid.RowSpan="2" Visibility="Collapsed" Background="#CC000000" Panel.ZIndex="100">
             <Border Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" Padding="25" Width="380" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel>
-                    <TextBlock Text="{DynamicResource TxtCreateTagTitle}" Foreground="White" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                    <TextBlock x:Name="TxtTagInputTitle" Text="{DynamicResource TxtCreateTagTitle}" Foreground="White" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,15"/>
                     <TextBlock Text="{DynamicResource TxtEnterNewName}" Foreground="#AAAAAA" FontSize="14" HorizontalAlignment="Left" Margin="0,0,0,5"/>
                     <TextBox x:Name="TxtTagInput" Background="#111111" Foreground="White" BorderBrush="#333333" Margin="0,0,0,15"/>
                     <TextBlock Text="{DynamicResource TxtTagColor}" Foreground="#AAAAAA" FontSize="14" HorizontalAlignment="Left" Margin="0,0,0,5"/>

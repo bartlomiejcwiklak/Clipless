@@ -75,6 +75,7 @@
     <system:String x:Key="TxtCreateTag">Create Tag</system:String>
     <system:String x:Key="TxtTagWith">Tags</system:String>
     <system:String x:Key="TxtCreateTagTitle">New Tag</system:String>
+    <system:String x:Key="TxtEditTagTitle">Edit Tag</system:String>
     <system:String x:Key="TxtTagColor">Tag Color:</system:String>
 
     <system:String x:Key="TxtStatusReady">Ready</system:String>
