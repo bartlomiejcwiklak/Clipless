@@ -34,8 +34,8 @@
 - **Localization**: Built-in support for multiple UI languages via resource dictionaries.
 
 ## Credits
-Made by ohhbaro
-Tested extensively by Liify
+Made by **ohhbaro**</br>
+Thanks to **Liify** and **Kolczastyy** for testing
 
 ## Acknowledgements 
 This project uses:
