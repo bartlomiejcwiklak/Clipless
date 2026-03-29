@@ -21,7 +21,7 @@
     <Grid>
         <Grid.Resources>
             <DataTemplate x:Key="ClipItemTemplate">
-                <Border Width="220" Margin="0" Background="#222222" CornerRadius="4" Padding="5" MouseEnter="Clip_MouseEnter" MouseLeave="Clip_MouseLeave">
+                <Border Width="220" Margin="0" Background="#222222" CornerRadius="4" Padding="5" MouseEnter="Clip_MouseEnter" MouseLeave="Clip_MouseLeave" PreviewMouseLeftButtonDown="Clip_PreviewMouseLeftButtonDown" PreviewMouseMove="Clip_PreviewMouseMove">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>

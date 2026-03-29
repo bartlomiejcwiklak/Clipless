@@ -2674,6 +2674,32 @@ namespace ClipManager
             }
         }
 
+        private System.Windows.Point? _dragStartPoint;
+
+        private void Clip_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            _dragStartPoint = e.GetPosition(null);
+        }
+
+        private void Clip_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed && _dragStartPoint.HasValue)
+            {
+                System.Windows.Point currentPosition = e.GetPosition(null);
+                if (Math.Abs(currentPosition.X - _dragStartPoint.Value.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                    Math.Abs(currentPosition.Y - _dragStartPoint.Value.Y) > SystemParameters.MinimumVerticalDragDistance)
+                {
+                    if (sender is FrameworkElement fe && fe.DataContext is VideoClip clip)
+                    {
+                        var data = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, new string[] { clip.FullPath });
+                        System.Windows.DragDrop.DoDragDrop(fe, data, System.Windows.DragDropEffects.Copy);
+                        _dragStartPoint = null;
+                        e.Handled = true;
+                    }
+                }
+            }
+        }
+
         private void TrimCanvas_SizeChanged(
             object sender, SizeChangedEventArgs e) => UpdateBracketsUI();
         private void BtnSettings_Click(object sender, RoutedEventArgs e)
