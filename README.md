@@ -2,6 +2,8 @@
 
 ## An easy to use clip editor for gaming
 
+<img width="2560" height="720" alt="screens" src="https://github.com/user-attachments/assets/fb9373c6-6c95-4046-ab74-c296f7591271" />
+
 ### Features:
 - Trim a video clip of your gaming moment
 - Either replace or create a new video file
