@@ -12,8 +12,8 @@ namespace ClipManager
     /// </summary>
     public partial class App : System.Windows.Application
     {
-        private static Mutex _mutex;
-        private static EventWaitHandle _bringToFrontEvent;
+        private static Mutex? _mutex;
+        private static EventWaitHandle? _bringToFrontEvent;
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
@@ -30,7 +30,7 @@ namespace ClipManager
             if (!createdNew)
             {
                 // App is already running, exit this instance
-                if (EventWaitHandle.TryOpenExisting(eventName, out EventWaitHandle ev))
+                if (EventWaitHandle.TryOpenExisting(eventName, out EventWaitHandle? ev))
                 {
                     ev.Set();
                 }
@@ -43,9 +43,9 @@ namespace ClipManager
             {
                 while (true)
                 {
-                    if (_bringToFrontEvent.WaitOne())
+                    if (_bringToFrontEvent?.WaitOne() == true)
                     {
-                        Current.Dispatcher.BeginInvoke(new Action(() =>
+                        _ = Current.Dispatcher.BeginInvoke(new Action(() =>
                         {
                             if (Current.MainWindow != null)
                             {

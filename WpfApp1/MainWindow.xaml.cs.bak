@@ -1,18 +1,22 @@
-using LibVLCSharp.Shared;
-using Microsoft.WindowsAPICodePack.Dialogs;
+﻿using LibVLCSharp.Shared;
 using Microsoft.WindowsAPICodePack.Shell;
-using NAudio.CoreAudioApi;
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Wpf.Ui.Controls;
 using Xabe.FFmpeg;
 using Xabe.FFmpeg.Downloader;
+using Microsoft.WindowsAPICodePack.Dialogs;
+using NAudio.CoreAudioApi;
 
 namespace ClipManager
 {
@@ -21,38 +25,39 @@ namespace ClipManager
         public ObservableCollection<GameFolder> Folders
         {
             get; set;
-        } = [];
+        } = new ObservableCollection<GameFolder>();
         public ObservableCollection<VideoClip> Clips
         {
             get; set;
-        } = [];
+        } = new ObservableCollection<VideoClip>();
         public ObservableCollection<VideoClip> RecentClips
         {
             get; set;
-        } = [];
+        } = new ObservableCollection<VideoClip>();
         public ObservableCollection<ClipTag> SpecialTagsList
         {
             get; set;
-        } = [];
+        } = new ObservableCollection<ClipTag>();
         public ObservableCollection<ClipTag> TagsList
         {
             get; set;
-        } = [];
+        } = new ObservableCollection<ClipTag>();
 
-        private Dictionary<string, HashSet<string>> _clipTagMap = new();
-        private readonly string _tagsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClipManager_Tags.txt");
-        private readonly string _clipTagsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClipManager_ClipTags.txt");
+        private Dictionary<string, HashSet<string>> _clipTagMap = new Dictionary<string, HashSet<string>>();
+        private string _tagsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClipManager_Tags.txt");
+        private string _clipTagsFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClipManager_ClipTags.txt");
 
-        private readonly Dictionary<string, ImageSource> _thumbnailCache = new();
+        private Dictionary<string, ImageSource> _thumbnailCache =
+            new Dictionary<string, ImageSource>();
 
-        private LibVLC _libVLC = null!;
-        private LibVLCSharp.Shared.MediaPlayer _mediaPlayer = null!;
+        private LibVLC _libVLC;
+        private LibVLCSharp.Shared.MediaPlayer _mediaPlayer;
         private bool _isUpdatingFromPlayer = false;
         private string _basePath = "";
         private string _outPath = "";
         private string _language = "en";
         private int _targetSizeMb = 10;
-        private readonly string _settingsIniFilePath = Path.Combine(
+        private string _settingsIniFilePath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "ClipManager_Settings.ini");
         private string _renderEngine = "CPU";
@@ -61,19 +66,19 @@ namespace ClipManager
         private int _autoDeleteWeeks = 4;
         private int _volume = 100;
 
-        private System.Windows.Threading.DispatcherTimer _hoverTimer = null!;
+        private System.Windows.Threading.DispatcherTimer _hoverTimer;
         private int _hoverFrameIndex = 1;
-        private readonly BlockingCollection<Action> _staJobs = new();
+        private BlockingCollection<Action> _staJobs = new BlockingCollection<Action>();
 
-        private FileSystemWatcher _folderWatcher = null!;
+        private FileSystemWatcher _folderWatcher;
 
-        private VideoClip? _currentClip;
+        private VideoClip _currentClip;
         private long _videoDurationMs = 1;
         private long _trimStartMs = 0;
         private long _trimEndMs = 0;
 
-        private HashSet<string> _favorites = new();
-        private readonly string _favoritesFilePath = Path.Combine(
+        private HashSet<string> _favorites = new HashSet<string>();
+        private string _favoritesFilePath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "ClipManager_Favorites.txt");
 
@@ -123,16 +128,10 @@ namespace ClipManager
         private const int WH_MOUSE_LL = 14;
         private const int WM_KEYDOWN = 0x0100;
         private const int WM_SYSKEYDOWN = 0x0104;
-        private const int WM_LBUTTONDOWN = 0x0201;
-        private const int WM_LBUTTONDBLCLK = 0x0203;
-        private const int WM_XBUTTONDOWN = 0x020B;
-        private const int WM_XBUTTONUP = 0x020C;
-        private const int XBUTTON1 = 1;
-        private const int XBUTTON2 = 2;
 
-        private LowLevelKeyboardProc _hookProc = null!;
+        private LowLevelKeyboardProc _hookProc;
         private IntPtr _hookID = IntPtr.Zero;
-        private LowLevelKeyboardProc _mouseHookProc = null!;
+        private LowLevelKeyboardProc _mouseHookProc;
         private IntPtr _mouseHookID = IntPtr.Zero;
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -144,12 +143,14 @@ namespace ClipManager
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern IntPtr GetShellWindow();
 
+        private const int CLIP_HOTKEY_ID = 9000;
         private const uint MOD_ALT = 0x0001;
         private const uint MOD_CTRL = 0x0002;
         private const uint MOD_SHIFT = 0x0004;
+        private const uint MOD_NOREPEAT = 0x4000;
 
-        private System.Windows.Forms.NotifyIcon? _notifyIcon;
-        private System.Diagnostics.Process? _bgRecorder;
+        private System.Windows.Forms.NotifyIcon _notifyIcon;
+        private System.Diagnostics.Process _bgRecorder;
         private bool _isRecording = false;
         private int _bufferMinutes = 5;
         private bool _recordEnabled = true;
@@ -159,16 +160,17 @@ namespace ClipManager
         private string _audioInputId = "";
         private string _cameraId = "";
         private bool _cameraOverlayEnabled = false;
-        private AudioPipeRecorder? _audioOutputRecorder;
-        private AudioPipeRecorder? _audioInputRecorder;
+        private AudioPipeRecorder _audioOutputRecorder;
+        private AudioPipeRecorder _audioInputRecorder;
         private bool _actualClose = false;
         private int _recorderSessionId = 0;
+        private int _sliderDebounceCounter = 0;
+
         private bool _normalizeOnClip = false;
         private int _captureMonitorIndex = 0;
         private uint _hotkeyModifiers = MOD_CTRL | MOD_SHIFT;
-        private int _hotkeyKey = 0x53; 
+        private int _hotkeyKey = 0x53; // 'S' by default
 
-        
         public MainWindow()
         {
             Core.Initialize();
@@ -178,20 +180,15 @@ namespace ClipManager
             ProgressSlider.AddHandler(System.Windows.Controls.Primitives.Thumb.DragStartedEvent, new System.Windows.Controls.Primitives.DragStartedEventHandler(ProgressSlider_DragStarted));
             ProgressSlider.AddHandler(System.Windows.Controls.Primitives.Thumb.DragCompletedEvent, new System.Windows.Controls.Primitives.DragCompletedEventHandler(ProgressSlider_DragCompleted));
 
-            _hoverTimer = new System.Windows.Threading.DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(250)
-            };
+            _hoverTimer = new System.Windows.Threading.DispatcherTimer();
+            _hoverTimer.Interval = TimeSpan.FromMilliseconds(250);
             _hoverTimer.Tick += HoverTimer_Tick;
 
-            _scrollTimer = new System.Windows.Threading.DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(30)
-            };
+            _scrollTimer = new System.Windows.Threading.DispatcherTimer();
+            _scrollTimer.Interval = TimeSpan.FromMilliseconds(30);
             _scrollTimer.Tick += ScrollTimer_Tick;
 
-            var staThread = new System.Threading.Thread(() =>
-            {
+            var staThread = new System.Threading.Thread(() => {
                 foreach (var job in _staJobs.GetConsumingEnumerable()) job();
             });
             staThread.SetApartmentState(System.Threading.ApartmentState.STA);
@@ -232,9 +229,8 @@ namespace ClipManager
             {
                 this.WindowState = WindowState.Minimized;
                 this.ShowInTaskbar = false;
-                this.Loaded += (s, e) =>
-                {
-                    this.Visibility = Visibility.Hidden;
+                this.Loaded += (s, e) => { 
+                    this.Visibility = Visibility.Hidden; 
                     if (_recordEnabled)
                     {
                         StartBackgroundRecorder();
@@ -250,7 +246,6 @@ namespace ClipManager
             }
         }
 
-        
         private void UpdateTrayMenuUI()
         {
             if (_notifyIcon != null)
@@ -266,28 +261,31 @@ namespace ClipManager
             }
         }
 
-        
         private void InitTrayIcon()
         {
-            _notifyIcon = new();
-            var processPath = Environment.ProcessPath;
-            if (!string.IsNullOrEmpty(processPath))
-            {
-                _notifyIcon.Icon = System.Drawing.Icon.ExtractAssociatedIcon(processPath);
-            }
+            _notifyIcon = new System.Windows.Forms.NotifyIcon();
+            _notifyIcon.Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath);
             _notifyIcon.Visible = true;
             _notifyIcon.Text = "Clipless Background Recorder";
-            _notifyIcon.DoubleClick += (s, e) => RestoreMainWindowFromTray();
+            _notifyIcon.DoubleClick += (s, e) => {
+                this.ShowInTaskbar = true;
+                this.WindowState = WindowState.Normal;
+                this.Visibility = Visibility.Visible;
+                this.Activate();
+            };
 
             var menu = new System.Windows.Forms.ContextMenuStrip();
-            menu.Items.Add("Save Clip", null, (s, e) =>
-            {
+            menu.Items.Add("Save Clip", null, (s, e) => {
                 SaveBufferedClip();
             });
             menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-            menu.Items.Add("Open Clipless", null, (s, e) => RestoreMainWindowFromTray());
-            menu.Items.Add("Quit", null, (s, e) =>
-            {
+            menu.Items.Add("Open Clipless", null, (s, e) => {
+                this.ShowInTaskbar = true;
+                this.WindowState = WindowState.Normal;
+                this.Visibility = Visibility.Visible;
+                this.Activate();
+            });
+            menu.Items.Add("Quit", null, (s, e) => {
                 _actualClose = true;
                 this.Close();
             });
@@ -295,160 +293,146 @@ namespace ClipManager
             UpdateTrayMenuUI();
         }
 
-        
-        private void RestoreMainWindowFromTray()
+        private IntPtr SetHook(LowLevelKeyboardProc proc)
         {
-            this.ShowInTaskbar = true;
-            this.WindowState = WindowState.Normal;
-            this.Visibility = Visibility.Visible;
-            this.Activate();
+            using (var curProcess = System.Diagnostics.Process.GetCurrentProcess())
+            using (var curModule = curProcess.MainModule)
+            {
+                return SetWindowsHookEx(WH_KEYBOARD_LL, proc, GetModuleHandle(curModule.ModuleName), 0);
+            }
         }
 
-        
-        private static IntPtr SetHook(LowLevelKeyboardProc proc)
+        private IntPtr SetMouseHook(LowLevelKeyboardProc proc)
         {
-            return SetHook(proc, WH_KEYBOARD_LL);
+            using (var curProcess = System.Diagnostics.Process.GetCurrentProcess())
+            using (var curModule = curProcess.MainModule)
+            {
+                return SetWindowsHookEx(WH_MOUSE_LL, proc, GetModuleHandle(curModule.ModuleName), 0);
+            }
         }
 
-        
-        private static IntPtr SetMouseHook(LowLevelKeyboardProc proc)
-        {
-            return SetHook(proc, WH_MOUSE_LL);
-        }
-
-        
-        private static IntPtr SetHook(LowLevelKeyboardProc proc, int hookType)
-        {
-            using var curProcess = System.Diagnostics.Process.GetCurrentProcess();
-            var curModule = curProcess.MainModule;
-            if (curModule == null) return IntPtr.Zero;
-
-            return SetWindowsHookEx(hookType, proc, GetModuleHandle(curModule.ModuleName), 0);
-        }
-
-        
-        private static bool IsCurrentProcessForegroundWindow()
-        {
-            IntPtr hwnd = GetForegroundWindow();
-            if (hwnd == IntPtr.Zero) return false;
-
-            _ = GetWindowThreadProcessId(hwnd, out uint pid);
-            return pid == Environment.ProcessId;
-        }
-
-        
-        private static System.Windows.Point GetMouseHookPoint(IntPtr lParam)
-        {
-            int x = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 0);
-            int y = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 4);
-            return new System.Windows.Point(x, y);
-        }
-
-        
         private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
             if (nCode >= 0)
             {
-                if (wParam == (IntPtr)WM_XBUTTONDOWN || wParam == (IntPtr)WM_XBUTTONUP)
+                if (wParam == (IntPtr)0x020B || wParam == (IntPtr)0x020C) // WM_XBUTTONDOWN or WM_XBUTTONUP
                 {
-                    if (IsCurrentProcessForegroundWindow())
+                    IntPtr hwnd = GetForegroundWindow();
+                    if (hwnd != IntPtr.Zero)
                     {
-                        int mouseData = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 8);
-                        int highWord = (mouseData >> 16) & 0xFFFF;
-
-                        if (wParam == (IntPtr)WM_XBUTTONDOWN)
+                        GetWindowThreadProcessId(hwnd, out uint pid);
+                        if (pid == System.Diagnostics.Process.GetCurrentProcess().Id)
                         {
-                            if (highWord == XBUTTON1)
+                            int mouseData = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 8);
+                            int highWord = (mouseData >> 16) & 0xFFFF;
+
+                            if (wParam == (IntPtr)0x020B) // WM_XBUTTONDOWN
                             {
-                                Dispatcher.BeginInvoke(new Action(() => NavigateBack()));
-                                return (IntPtr)1;
+                                if (highWord == 1) // XBUTTON1
+                                {
+                                    Dispatcher.BeginInvoke(new Action(() => NavigateBack()));
+                                    return (IntPtr)1; // suppress system event
+                                }
+                                else if (highWord == 2) // XBUTTON2
+                                {
+                                    Dispatcher.BeginInvoke(new Action(() => NavigateForward()));
+                                    return (IntPtr)1; // suppress system event
+                                }
                             }
-                            else if (highWord == XBUTTON2)
+                            else if (wParam == (IntPtr)0x020C) // WM_XBUTTONUP
                             {
-                                Dispatcher.BeginInvoke(new Action(() => NavigateForward()));
-                                return (IntPtr)1;
+                                if (highWord == 1 || highWord == 2)
+                                    return (IntPtr)1; // suppress release event
                             }
                         }
-                        else if (wParam == (IntPtr)WM_XBUTTONUP && (highWord == XBUTTON1 || highWord == XBUTTON2))
+                    }
+                }
+                else if (wParam == (IntPtr)0x0203) // WM_LBUTTONDBLCLK
+                {
+                    IntPtr hwnd = GetForegroundWindow();
+                    if (hwnd != IntPtr.Zero)
+                    {
+                        GetWindowThreadProcessId(hwnd, out uint pid);
+                        if (pid == System.Diagnostics.Process.GetCurrentProcess().Id)
                         {
+                            int x = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 0);
+                            int y = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 4);
+
+                            Dispatcher.BeginInvoke(new Action(() => {
+                                try
+                                {
+                                    if (PlayerOverlay != null && PlayerOverlay.Visibility == Visibility.Visible)
+                                    {
+                                        var pt = VideoPlayer.PointFromScreen(new System.Windows.Point(x, y));
+                                        if (pt.X >= 0 && pt.Y >= 0 && pt.X <= VideoPlayer.ActualWidth && pt.Y <= VideoPlayer.ActualHeight)
+                                        {
+                                            if (_isVideoFullscreen) ExitVideoFullscreen();
+                                            else EnterVideoFullscreen();
+                                        }
+                                    }
+                                }
+                                catch { }
+                            }));
                             return (IntPtr)1;
                         }
                     }
                 }
-                else if (wParam == (IntPtr)WM_LBUTTONDBLCLK)
+                else if (wParam == (IntPtr)0x0201) // WM_LBUTTONDOWN
                 {
-                    if (IsCurrentProcessForegroundWindow())
+                    IntPtr hwnd = GetForegroundWindow();
+                    if (hwnd != IntPtr.Zero)
                     {
-                        var screenPoint = GetMouseHookPoint(lParam);
-
-                        Dispatcher.BeginInvoke(new Action(() =>
+                        GetWindowThreadProcessId(hwnd, out uint pid);
+                        if (pid == System.Diagnostics.Process.GetCurrentProcess().Id)
                         {
-                            try
-                            {
-                                if (PlayerOverlay != null && PlayerOverlay.Visibility == Visibility.Visible)
-                                {
-                                    var pt = VideoPlayer.PointFromScreen(screenPoint);
-                                    if (pt.X >= 0 && pt.Y >= 0 && pt.X <= VideoPlayer.ActualWidth && pt.Y <= VideoPlayer.ActualHeight)
+                            int x = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 0);
+                            int y = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 4);
+
+                            Dispatcher.BeginInvoke(new Action(() => {
+                                try {
+                                    if (PlayerOverlay != null && PlayerOverlay.Visibility == Visibility.Visible && _mediaPlayer != null)
                                     {
-                                        if (_isVideoFullscreen) ExitVideoFullscreen();
-                                        else EnterVideoFullscreen();
-                                    }
-                                }
-                            }
-                            catch { }
-                        }));
-                        return (IntPtr)1;
-                    }
-                }
-                else if (wParam == (IntPtr)WM_LBUTTONDOWN)
-                {
-                    if (IsCurrentProcessForegroundWindow())
-                    {
-                        var screenPoint = GetMouseHookPoint(lParam);
-
-                        Dispatcher.BeginInvoke(new Action(() =>
-                        {
-                            try
-                            {
-                                if (PlayerOverlay != null && PlayerOverlay.Visibility == Visibility.Visible && _mediaPlayer != null)
-                                {
-                                    var pt = VideoPlayer.PointFromScreen(screenPoint);
-                                    if (pt.X >= 0 && pt.Y >= 0 && pt.X <= VideoPlayer.ActualWidth && pt.Y <= VideoPlayer.ActualHeight)
-                                    {
-                                        var now = DateTime.Now;
-                                        bool isDoubleClick = (now - _lastVideoClickAt).TotalMilliseconds <= System.Windows.Forms.SystemInformation.DoubleClickTime
-                                            && Math.Abs(pt.X - _lastVideoClickPos.X) <= System.Windows.Forms.SystemInformation.DoubleClickSize.Width
-                                            && Math.Abs(pt.Y - _lastVideoClickPos.Y) <= System.Windows.Forms.SystemInformation.DoubleClickSize.Height;
-
-                                        _lastVideoClickAt = now;
-                                        _lastVideoClickPos = pt;
-
-                                        if (isDoubleClick)
+                                        var pt = VideoPlayer.PointFromScreen(new System.Windows.Point(x, y));
+                                        if (pt.X >= 0 && pt.Y >= 0 && pt.X <= VideoPlayer.ActualWidth && pt.Y <= VideoPlayer.ActualHeight)
                                         {
-                                            if (_isVideoFullscreen) ExitVideoFullscreen();
-                                            else EnterVideoFullscreen();
-                                            return;
+                                            var now = DateTime.Now;
+                                            bool isDoubleClick = (now - _lastVideoClickAt).TotalMilliseconds <= System.Windows.Forms.SystemInformation.DoubleClickTime
+                                                && Math.Abs(pt.X - _lastVideoClickPos.X) <= System.Windows.Forms.SystemInformation.DoubleClickSize.Width
+                                                && Math.Abs(pt.Y - _lastVideoClickPos.Y) <= System.Windows.Forms.SystemInformation.DoubleClickSize.Height;
+
+                                            _lastVideoClickAt = now;
+                                            _lastVideoClickPos = pt;
+
+                                            if (isDoubleClick)
+                                            {
+                                                if (_isVideoFullscreen) ExitVideoFullscreen();
+                                                else EnterVideoFullscreen();
+                                                return;
+                                            }
+
+                                            bool willPlay = false;
+                                            if (_mediaPlayer.State == LibVLCSharp.Shared.VLCState.Ended || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Stopped || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Error)
+                                            {
+                                                willPlay = true;
+                                            }
+                                            else
+                                            {
+                                                willPlay = !_mediaPlayer.IsPlaying;
+                                            }
+
+                                            PlayPauseButton_Click(null, null);
+                                            ShowPlayPauseAnimation(willPlay);
                                         }
-
-                                        bool willPlay = _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Ended
-                                            || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Stopped
-                                            || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Error
-                                            || !_mediaPlayer.IsPlaying;
-
-                                        PlayPauseButton_Click(null, null);
-                                        ShowPlayPauseAnimation(willPlay);
                                     }
-                                }
-                            }
-                            catch { }
-                        }));
+                                } catch {}
+                            }));
+                        }
                     }
                 }
             }
             return CallNextHookEx(_mouseHookID, nCode, wParam, lParam);
         }
 
-        
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
             if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
@@ -476,7 +460,6 @@ namespace ClipManager
             return CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
 
-        
         protected override void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
@@ -487,7 +470,6 @@ namespace ClipManager
             _mouseHookID = SetMouseHook(_mouseHookProc);
         }
 
-        
         protected override void OnClosing(CancelEventArgs e)
         {
             if (_notifyIcon != null && !_actualClose)
@@ -504,10 +486,9 @@ namespace ClipManager
             }
         }
 
-        
         protected override void OnClosed(EventArgs e)
         {
-            if (_hookID != IntPtr.Zero) UnhookWindowsHookEx(_hookID);
+            UnhookWindowsHookEx(_hookID);
             if (_mouseHookID != IntPtr.Zero) UnhookWindowsHookEx(_mouseHookID);
             StopBackgroundRecorder();
             if (_notifyIcon != null)
@@ -518,17 +499,14 @@ namespace ClipManager
             base.OnClosed(e);
         }
 
-        
         private void SetStatus(string text)
         {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
+            Dispatcher.BeginInvoke(new Action(() => {
                 if (TxtStatusBar != null)
                     TxtStatusBar.Text = text;
             }));
         }
 
-        
         private void StartBackgroundRecorder()
         {
             if (!_recordEnabled) return;
@@ -546,10 +524,9 @@ namespace ClipManager
 
             string playlistPath = Path.Combine(tempDir, "buffer.m3u8");
 
-            Task.Run(async () =>
-            {
+            Task.Run(async () => {
                 if (currentSessionId != _recorderSessionId || !_recordEnabled) return;
-                try { await DownloadFFmpegIfNeeded(); } catch { }
+                try { await DownloadFFmpegIfNeeded(); } catch { } 
                 if (currentSessionId != _recorderSessionId || !_recordEnabled) return;
                 string ffmpegPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Clipless", "ffmpeg", "ffmpeg.exe");
 
@@ -559,8 +536,8 @@ namespace ClipManager
                 int segmentTime = 2;
                 int maxSegments = (_bufferMinutes * 60) / segmentTime;
 
-                string encoder = _renderEngine == "GPU"
-                    ? $"h264_nvenc -preset fast -cq 28 -g {fpsInt * segmentTime} -keyint_min {fpsInt * segmentTime} -sc_threshold 0"
+                string encoder = _renderEngine == "GPU" 
+                    ? $"h264_nvenc -preset fast -cq 28 -g {fpsInt * segmentTime} -keyint_min {fpsInt * segmentTime} -sc_threshold 0" 
                     : $"libx264 -preset superfast -crf 28 -g {fpsInt * segmentTime} -keyint_min {fpsInt * segmentTime} -sc_threshold 0";
 
                 var screens = System.Windows.Forms.Screen.AllScreens;
@@ -568,8 +545,10 @@ namespace ClipManager
                 var screen = screens[monIndex];
                 int w = screen.Bounds.Width;
                 int h = screen.Bounds.Height;
+                int x = screen.Bounds.X;
+                int y = screen.Bounds.Y;
 
-                
+                // Encoders require even dimensions
                 w = w % 2 != 0 ? w - 1 : w;
                 h = h % 2 != 0 ? h - 1 : h;
 
@@ -579,8 +558,7 @@ namespace ClipManager
                 int currentInputIdx = 1;
                 int camIndexIdx = -1;
 
-                if (_cameraOverlayEnabled && !string.IsNullOrEmpty(_cameraId))
-                {
+                if (_cameraOverlayEnabled && !string.IsNullOrEmpty(_cameraId)) {
                     camInput = $"-use_wallclock_as_timestamps 1 -thread_queue_size 2048 -f dshow -rtbufsize 2048M -i video=\"{_cameraId}\" ";
                     camIndexIdx = currentInputIdx++;
                 }
@@ -590,34 +568,27 @@ namespace ClipManager
                 int audioOutIdx = -1;
                 int audioInIdx = -1;
 
-                try
-                {
-                    if (!string.IsNullOrEmpty(_audioOutputId))
-                    {
-                        var dev = _audioOutputId == "Default"
+                try {
+                    if (!string.IsNullOrEmpty(_audioOutputId)) {
+                        var dev = _audioOutputId == "Default" 
                                 ? enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia)
                                 : enumerator.GetDevice(_audioOutputId);
-                        if (dev != null)
-                        {
+                        if (dev != null) {
                             var outRec = new AudioPipeRecorder(dev, true);
                             _audioOutputRecorder = outRec;
-                            _ = outRec.StartAsync();
+                            _ = outRec.StartAsync(); 
                             audioInputs += $"-use_wallclock_as_timestamps 1 -thread_queue_size 2048 -f {outRec.FFmpegFormat} -ar {outRec.SampleRate} -ac {outRec.Channels} -i \\\\.\\pipe\\{outRec.PipeName} ";
                             audioOutIdx = currentInputIdx++;
                         }
                     }
-                }
-                catch { }
+                } catch { }
 
-                try
-                {
-                    if (!string.IsNullOrEmpty(_audioInputId))
-                    {
-                        var dev = _audioInputId == "Default"
+                try {
+                    if (!string.IsNullOrEmpty(_audioInputId)) {
+                        var dev = _audioInputId == "Default" 
                                 ? enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia)
                                 : enumerator.GetDevice(_audioInputId);
-                        if (dev != null)
-                        {
+                        if (dev != null) {
                             var inRec = new AudioPipeRecorder(dev, false);
                             _audioInputRecorder = inRec;
                             _ = inRec.StartAsync();
@@ -625,40 +596,31 @@ namespace ClipManager
                             audioInIdx = currentInputIdx++;
                         }
                     }
-                }
-                catch { }
+                } catch { }
 
-                List<string> filters = [];
+                List<string> filters = new List<string>();
 
                 string preScale = "hwdownload,format=bgra";
                 if (_captureResolution == "1080p") preScale += ",scale=-2:1080";
                 else if (_captureResolution == "720p") preScale += ",scale=-2:720";
 
                 string videoMap = "0:v";
-                if (camIndexIdx != -1)
-                {
+                if (camIndexIdx != -1) {
                     filters.Add($"[0:v]{preScale}[main];[{camIndexIdx}:v]scale=320:-2[cam];[main][cam]overlay=20:H-h-20[vout]");
                     videoMap = "[vout]";
-                }
-                else
-                {
+                } else {
                     filters.Add($"[0:v]{preScale}[vout]");
                     videoMap = "[vout]";
                 }
 
                 string audioMap = "";
-                if (audioOutIdx != -1 && audioInIdx != -1)
-                {
+                if (audioOutIdx != -1 && audioInIdx != -1) {
                     filters.Add($"[{audioOutIdx}:a]aresample=async=1[a1];[{audioInIdx}:a]aresample=async=1[a2];[a1][a2]amix=inputs=2:duration=longest[aout]");
                     audioMap = " -map \"[aout]\" ";
-                }
-                else if (audioOutIdx != -1)
-                {
+                } else if (audioOutIdx != -1) {
                     filters.Add($"[{audioOutIdx}:a]aresample=async=1[aout]");
                     audioMap = " -map \"[aout]\" ";
-                }
-                else if (audioInIdx != -1)
-                {
+                } else if (audioInIdx != -1) {
                     filters.Add($"[{audioInIdx}:a]aresample=async=1[aout]");
                     audioMap = " -map \"[aout]\" ";
                 }
@@ -668,8 +630,8 @@ namespace ClipManager
 
                 _bgRecorder = new System.Diagnostics.Process();
                 _bgRecorder.StartInfo.FileName = ffmpegPath;
-                
-                
+                // Specify offset and video_size to capture only the target monitor.
+                // This massively reduces file size, permits NVENC to work (it limits at 4096 max width), and makes saving nearly instant.
                 _bgRecorder.StartInfo.Arguments = $"-y -use_wallclock_as_timestamps 1 -thread_queue_size 2048 -f lavfi -i \"ddagrab=output_idx={monIndex}:framerate={fps}:draw_mouse=1:video_size={w}x{h}\" {camInput}{audioInputs}{filterArg}-map \"{videoMap}\"{audioMap}{audioCodec}-c:v {encoder} -pix_fmt yuv420p -vsync 1 -f hls -hls_time {segmentTime} -hls_list_size {maxSegments} -hls_flags delete_segments \"{playlistPath}\"";
                 _bgRecorder.StartInfo.UseShellExecute = false;
                 _bgRecorder.StartInfo.CreateNoWindow = true;
@@ -677,19 +639,17 @@ namespace ClipManager
 
                 if (currentSessionId != _recorderSessionId || !_recordEnabled) return;
 
-            _bgRecorder.Start();
-            _isRecording = true;
-            _ = Dispatcher.BeginInvoke(new Action(() =>
-                {
+                _bgRecorder.Start();
+                _isRecording = true;
+                Dispatcher.BeginInvoke(new Action(() => {
                     SetStatus(GetString("TxtStatusReadyToClip"));
                 }));
             });
         }
 
-        
         private void StopBackgroundRecorder()
         {
-            _recorderSessionId++; 
+            _recorderSessionId++; // Cancel any pending starting tasks
             _isRecording = false;
             try { _audioOutputRecorder?.Dispose(); _audioOutputRecorder = null; } catch { }
             try { _audioInputRecorder?.Dispose(); _audioInputRecorder = null; } catch { }
@@ -700,12 +660,10 @@ namespace ClipManager
                 {
                     if (!_bgRecorder.HasExited)
                     {
-                        try
-                        {
+                        try {
                             _bgRecorder.StandardInput.WriteLine("q");
                             _bgRecorder.WaitForExit(3000);
-                        }
-                        catch { }
+                        } catch { }
 
                         if (!_bgRecorder.HasExited)
                         {
@@ -720,27 +678,22 @@ namespace ClipManager
 
             SetStatus(GetString("TxtStatusBgRecDisabled"));
 
-            
-            try
-            {
-                var localApp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Clipless");
+            // aggressive cleanup of old background recorders if needed just in case it orphaned before the fix
+            try {
+                var localApp = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Clipless").ToLower();
                 foreach (var p in System.Diagnostics.Process.GetProcessesByName("ffmpeg"))
                 {
-                    try
-                    {
-                        if (p.MainModule?.FileName?.StartsWith(localApp, StringComparison.OrdinalIgnoreCase) == true)
+                    try {
+                        if (p.MainModule?.FileName.ToLower().StartsWith(localApp) == true)
                         {
                             p.Kill();
                         }
-                    }
-                    catch { }
+                    } catch {}
                 }
-            }
-            catch { }
+            } catch {}
         }
 
-        
-        private static string GetForegroundProcessName()
+        private string GetForegroundProcessName()
         {
             string gameName = "Desktop";
             try
@@ -749,18 +702,14 @@ namespace ClipManager
                 IntPtr shellHwnd = GetShellWindow();
                 if (hwnd != IntPtr.Zero && hwnd != shellHwnd)
                 {
-                    _ = GetWindowThreadProcessId(hwnd, out uint pid);
+                    GetWindowThreadProcessId(hwnd, out uint pid);
                     if (pid > 0)
                     {
                         var process = System.Diagnostics.Process.GetProcessById((int)pid);
                         string procName = process.ProcessName;
                         if (!string.Equals(procName, "explorer", StringComparison.OrdinalIgnoreCase))
                         {
-                            try
-                            {
-                                gameName = process.MainModule?.FileVersionInfo?.ProductName ?? string.Empty;
-                            }
-                            catch { }
+                            try { gameName = process.MainModule.FileVersionInfo.ProductName; } catch { }
                             if (string.IsNullOrWhiteSpace(gameName)) gameName = procName;
                         }
                     }
@@ -768,7 +717,7 @@ namespace ClipManager
             }
             catch { }
 
-            
+            // Ensure valid characters for folder name
             foreach (char c in Path.GetInvalidFileNameChars())
             {
                 gameName = gameName.Replace(c.ToString(), "");
@@ -779,8 +728,7 @@ namespace ClipManager
             return gameName;
         }
 
-        
-        private void SaveBufferedClip(string? forcedGameName = null)
+        private void SaveBufferedClip(string forcedGameName = null)
         {
             if (!_isRecording) return;
 
@@ -789,7 +737,7 @@ namespace ClipManager
 
             if (!File.Exists(playlistSrc)) return;
 
-            
+            // Cleanly stop background recorder to flush last segment
             StopBackgroundRecorder();
 
             string stitchDir = Path.Combine(Path.GetTempPath(), "CliplessStitch_" + Guid.NewGuid().ToString("N"));
@@ -803,7 +751,7 @@ namespace ClipManager
                 return;
             }
 
-            
+            // Immediately restart empty buffer for fresh clip timeline
             StartBackgroundRecorder();
 
             string playlistPath = Path.Combine(stitchDir, "buffer.m3u8");
@@ -816,8 +764,10 @@ namespace ClipManager
                 var streamInfo = System.Windows.Application.GetResourceStream(uri);
                 if (streamInfo != null)
                 {
-                    using var sp = new System.Media.SoundPlayer(streamInfo.Stream);
-                    sp.Play();
+                    using (var sp = new System.Media.SoundPlayer(streamInfo.Stream))
+                    {
+                        sp.Play();
+                    }
                 }
             }
             catch { }
@@ -833,15 +783,14 @@ namespace ClipManager
 
             SetStatus(GetString("TxtStatusSaving"));
 
-            Task.Run(() =>
-            {
+            Task.Run(() => {
                 try
                 {
                     string ffmpegPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Clipless", "ffmpeg", "ffmpeg.exe");
                     var stitchProcess = new System.Diagnostics.Process();
                     stitchProcess.StartInfo.FileName = ffmpegPath;
 
-                    
+                    // We must allow ALL extensions before input mapping for HLS, then stream copy.
                     if (_normalizeOnClip)
                     {
                         stitchProcess.StartInfo.Arguments = $"-y -allowed_extensions ALL -i \"{playlistPath}\" -c:v copy -c:a aac -b:a 192k -af loudnorm -avoid_negative_ts make_zero -fflags +genpts \"{outPath}\"";
@@ -857,8 +806,7 @@ namespace ClipManager
 
                     try { Directory.Delete(stitchDir, true); } catch { }
 
-                    Dispatcher.BeginInvoke(new Action(() =>
-                    {
+                    Dispatcher.BeginInvoke(new Action(() => {
                         if (File.Exists(outPath))
                         {
                             string savedText = GetString("TxtStatusClipSaved");
@@ -885,7 +833,6 @@ namespace ClipManager
             });
         }
 
-        
         private string GetString(string key) => TryFindResource(key) as string
                                                 ?? key;
 
@@ -953,7 +900,6 @@ namespace ClipManager
             }
         }
 
-        
         private void LoadSettings()
         {
             SpecialTagsList.Clear();
@@ -964,7 +910,7 @@ namespace ClipManager
             TagsList.Clear();
             if (File.Exists(_tagsFilePath))
             {
-                foreach (string line in File.ReadAllLines(_tagsFilePath))
+                foreach(string line in File.ReadAllLines(_tagsFilePath))
                 {
                     string[] parts = line.Split('|');
                     if (parts.Length >= 3 && parts[0] != "FAVORITES_SPECIAL_TAG" && parts[0] != "HOME_SPECIAL_TAG")
@@ -978,14 +924,14 @@ namespace ClipManager
             _clipTagMap.Clear();
             if (File.Exists(_clipTagsFilePath))
             {
-                foreach (string line in File.ReadAllLines(_clipTagsFilePath))
+                foreach(string line in File.ReadAllLines(_clipTagsFilePath))
                 {
                     string[] parts = line.Split('|');
                     if (parts.Length >= 2)
                     {
                         string path = parts[0];
                         string[] tg = parts[1].Split(',');
-                        _clipTagMap[path] = [.. tg];
+                        _clipTagMap[path] = new HashSet<string>(tg);
                     }
                 }
             }
@@ -995,35 +941,35 @@ namespace ClipManager
 
             if (File.Exists(_settingsIniFilePath))
             {
-                foreach (string line in File.ReadAllLines(_settingsIniFilePath))
+                foreach(string line in File.ReadAllLines(_settingsIniFilePath))
                 {
-                    if (string.IsNullOrWhiteSpace(line) || !line.Contains('=')) continue;
-                    var parts = line.Split(['='], 2);
+                    if (string.IsNullOrWhiteSpace(line) || !line.Contains("=")) continue;
+                    var parts = line.Split(new[] { '=' }, 2);
                     string key = parts[0].Trim();
                     string value = parts[1].Trim();
 
-                    switch (key)
+                    switch(key)
                     {
                         case "BasePath": _basePath = value; break;
                         case "Language": _language = value; break;
                         case "OutPath": _outPath = value; break;
-                        case "TargetSizeMb": if (int.TryParse(value, out int size)) _targetSizeMb = size; break;
+                        case "TargetSizeMb": if(int.TryParse(value, out int size)) _targetSizeMb = size; break;
                         case "RenderEngine": _renderEngine = value; break;
-                        case "AutoDeleteEnabled": if (bool.TryParse(value, out bool enabled)) _autoDeleteEnabled = enabled; break;
-                        case "AutoDeleteWeeks": if (int.TryParse(value, out int w)) _autoDeleteWeeks = Math.Max(1, Math.Min(12, w)); break;
-                        case "Volume": if (int.TryParse(value, out int vol)) { _volume = Math.Max(0, Math.Min(100, vol)); } break;
-                        case "RecordEnabled": if (bool.TryParse(value, out bool recEn)) _recordEnabled = recEn; break;
-                        case "BufferMinutes": if (int.TryParse(value, out int bMin)) _bufferMinutes = Math.Max(1, Math.Min(30, bMin)); break;
+                        case "AutoDeleteEnabled": if(bool.TryParse(value, out bool enabled)) _autoDeleteEnabled = enabled; break;
+                        case "AutoDeleteWeeks": if(int.TryParse(value, out int w)) _autoDeleteWeeks = Math.Max(1, Math.Min(12, w)); break;
+                        case "Volume": if(int.TryParse(value, out int vol)) { _volume = Math.Max(0, Math.Min(100, vol)); } break;
+                        case "RecordEnabled": if(bool.TryParse(value, out bool recEn)) _recordEnabled = recEn; break;
+                        case "BufferMinutes": if(int.TryParse(value, out int bMin)) _bufferMinutes = Math.Max(1, Math.Min(30, bMin)); break;
                         case "CaptureFramerate": _captureFramerate = value; break;
                         case "CaptureResolution": _captureResolution = value; break;
                         case "AudioOutputId": _audioOutputId = value; break;
                         case "AudioInputId": _audioInputId = value; break;
                         case "CameraId": _cameraId = value; break;
-                        case "CameraOverlayEnabled": if (bool.TryParse(value, out bool cEn)) _cameraOverlayEnabled = cEn; break;
-                        case "NormalizeOnClip": if (bool.TryParse(value, out bool nOn)) _normalizeOnClip = nOn; break;
-                        case "CaptureMonitorIndex": if (int.TryParse(value, out int mIdx)) _captureMonitorIndex = mIdx; break;
-                        case "HotkeyModifiers": if (uint.TryParse(value, out uint hMod)) _hotkeyModifiers = hMod; break;
-                        case "HotkeyKey": if (int.TryParse(value, out int hKey)) _hotkeyKey = hKey; break;
+                        case "CameraOverlayEnabled": if(bool.TryParse(value, out bool cEn)) _cameraOverlayEnabled = cEn; break;
+                        case "NormalizeOnClip": if(bool.TryParse(value, out bool nOn)) _normalizeOnClip = nOn; break;
+                        case "CaptureMonitorIndex": if(int.TryParse(value, out int mIdx)) _captureMonitorIndex = mIdx; break;
+                        case "HotkeyModifiers": if(uint.TryParse(value, out uint hMod)) _hotkeyModifiers = hMod; break;
+                        case "HotkeyKey": if(int.TryParse(value, out int hKey)) _hotkeyKey = hKey; break;
                     }
                 }
             }
@@ -1075,14 +1021,16 @@ namespace ClipManager
 
             try
             {
-                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
-                if (key != null)
+                using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
                 {
-                    var val = key.GetValue("Clipless") as string;
-                    _autoStartEnabled = val != null;
-                    if (_autoStartEnabled && !val!.Contains("-autostart"))
+                    if (key != null)
                     {
-                        key.SetValue("Clipless", $"\"{Environment.ProcessPath}\" -autostart");
+                        var val = key.GetValue("Clipless") as string;
+                        _autoStartEnabled = (val != null);
+                        if (_autoStartEnabled && !val.Contains("-autostart"))
+                        {
+                            key.SetValue("Clipless", $"\"{Environment.ProcessPath}\" -autostart");
+                        }
                     }
                 }
             }
@@ -1133,7 +1081,6 @@ namespace ClipManager
             _isLoaded = true;
         }
 
-        
         private void LoadMonitors()
         {
             var screens = System.Windows.Forms.Screen.AllScreens;
@@ -1150,7 +1097,6 @@ namespace ClipManager
             }
         }
 
-        
         private void UpdateHotkeyUI()
         {
             if (TxtSaveHotkey != null)
@@ -1164,13 +1110,11 @@ namespace ClipManager
             UpdateTrayMenuUI();
         }
 
-        
         private void UpdateHotkey()
         {
             UpdateHotkeyUI();
         }
 
-        
         private void TxtSaveHotkey_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
             e.Handled = true;
@@ -1181,7 +1125,7 @@ namespace ClipManager
                 key == System.Windows.Input.Key.LeftAlt || key == System.Windows.Input.Key.RightAlt ||
                 key == System.Windows.Input.Key.LWin || key == System.Windows.Input.Key.RWin)
             {
-                return; 
+                return; // wait for actual key
             }
 
             uint mods = 0;
@@ -1195,11 +1139,10 @@ namespace ClipManager
             UpdateHotkey();
             SaveSettings();
 
-            
+            // Reset focus
             System.Windows.Input.Keyboard.ClearFocus();
         }
 
-        
         private void MonitorComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (MonitorComboBox.SelectedItem is MonitorItem item)
@@ -1208,7 +1151,6 @@ namespace ClipManager
             }
         }
 
-        
         private void ChkNormalizeOnClip_Changed(object sender, RoutedEventArgs e)
         {
             if (ChkNormalizeOnClip != null)
@@ -1217,7 +1159,6 @@ namespace ClipManager
             }
         }
 
-        
         private void SaveSettings()
         {
             if (!_isLoaded) return;
@@ -1248,13 +1189,11 @@ namespace ClipManager
             try { File.WriteAllLines(_settingsIniFilePath, lines); } catch { }
         }
 
-        
         private void SaveFavorites()
         {
             File.WriteAllLines(_favoritesFilePath, _favorites);
         }
 
-        
         private void BtnToggleTags_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (TagsListBox.Visibility == Visibility.Visible)
@@ -1271,7 +1210,6 @@ namespace ClipManager
             }
         }
 
-        
         private void BtnToggleFolders_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (GameFolderList.Visibility == Visibility.Visible)
@@ -1288,7 +1226,6 @@ namespace ClipManager
             }
         }
 
-        
         private void Favorite_Click(object sender, RoutedEventArgs e)
         {
             if (sender is FrameworkElement fe && fe.DataContext is VideoClip clip)
@@ -1310,7 +1247,6 @@ namespace ClipManager
             }
         }
 
-        
         private void BtnBrowseFolder_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new CommonOpenFileDialog { IsFolderPicker = true };
@@ -1318,7 +1254,7 @@ namespace ClipManager
                 dialog.InitialDirectory = _basePath;
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
-                _basePath = dialog.FileName ?? _basePath;
+                _basePath = dialog.FileName;
                 TxtFolderPath.Text = _basePath;
                 SaveSettings();
                 Clips.Clear();
@@ -1326,7 +1262,6 @@ namespace ClipManager
             }
         }
 
-        
         private void BtnBrowseOutputFolder_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new CommonOpenFileDialog { IsFolderPicker = true };
@@ -1337,13 +1272,12 @@ namespace ClipManager
 
             if (dialog.ShowDialog() == CommonFileDialogResult.Ok)
             {
-                _outPath = dialog.FileName ?? _outPath;
+                _outPath = dialog.FileName;
                 TxtOutputFolderPath.Text = _outPath;
                 SaveSettings();
             }
         }
 
-        
         private void BtnClearOutputFolder_Click(object sender, RoutedEventArgs e)
         {
             _outPath = "";
@@ -1351,7 +1285,6 @@ namespace ClipManager
             SaveSettings();
         }
 
-        
         private void ScanForGameFolders()
         {
             Folders.Clear();
@@ -1370,7 +1303,6 @@ namespace ClipManager
                     GetString("TxtFolderNotFoundTitle"));
         }
 
-        
         private void BtnRefresh_Click(object sender, RoutedEventArgs e)
         {
             ScanForGameFolders();
@@ -1378,7 +1310,6 @@ namespace ClipManager
                 RefreshCurrentFolder(selectedFolder.FullPath);
         }
 
-        
         private void BuildTagContextMenu()
         {
             if (MenuTagClip != null)
@@ -1403,7 +1334,6 @@ namespace ClipManager
             }
         }
 
-        
         private void ToggleClipTag(string tagId)
         {
             var selectedItems = ClipList.SelectedItems.Count > 0 ? ClipList.SelectedItems : RecentClipsList.SelectedItems;
@@ -1412,16 +1342,13 @@ namespace ClipManager
             {
                 var targetTag = TagsList.FirstOrDefault(t => t.Id == tagId);
 
-                foreach (VideoClip clip in selectedItems)
+                foreach(VideoClip clip in selectedItems)
                 {
-                    if (!_clipTagMap.TryGetValue(clip.FullPath, out var clipTags))
-                    {
-                        clipTags = [];
-                        _clipTagMap[clip.FullPath] = clipTags;
-                    }
+                    if (!_clipTagMap.ContainsKey(clip.FullPath)) _clipTagMap[clip.FullPath] = new HashSet<string>();
 
-                    if (clipTags.Remove(tagId))
+                    if (_clipTagMap[clip.FullPath].Contains(tagId))
                     {
+                        _clipTagMap[clip.FullPath].Remove(tagId);
                         if (targetTag != null)
                         {
                             var existing = clip.Tags.FirstOrDefault(t => t.Id == tagId);
@@ -1430,42 +1357,39 @@ namespace ClipManager
                     }
                     else
                     {
-                        clipTags.Add(tagId);
+                        _clipTagMap[clip.FullPath].Add(tagId);
                         if (targetTag != null && !clip.Tags.Any(t => t.Id == tagId))
                         {
                             clip.Tags.Add(targetTag);
                         }
                     }
 
-                    if (clipTags.Count == 0)
+                    if (_clipTagMap[clip.FullPath].Count == 0)
                         _clipTagMap.Remove(clip.FullPath);
                 }
                 SaveClipTags();
             }
         }
 
-        
         private void SaveTags()
         {
             File.WriteAllLines(_tagsFilePath, TagsList.Where(g => g.Id != "FAVORITES_SPECIAL_TAG" && g.Id != "HOME_SPECIAL_TAG").Select(t => $"{t.Id}|{t.Name}|{t.Color}"));
             BuildTagContextMenu();
         }
 
-        
         private void SaveClipTags()
         {
             var lines = new List<string>();
-            foreach (var kvp in _clipTagMap)
+            foreach(var kvp in _clipTagMap)
             {
                 lines.Add($"{kvp.Key}|{string.Join(",", kvp.Value)}");
             }
             File.WriteAllLines(_clipTagsFilePath, lines);
         }
 
-        private ClipTag? _tagRen;
+        private ClipTag _tagRen;
         private bool _isTagEditMode = false;
 
-        
         private void BtnCreateTag_Click(object sender, RoutedEventArgs e)
         {
             _isTagEditMode = false;
@@ -1478,7 +1402,6 @@ namespace ClipManager
             TxtTagInput.Focus();
         }
 
-        
         private void MenuTagRename_Click(object sender, RoutedEventArgs e)
         {
             if (TagsListBox.SelectedItem is ClipTag t && t.Id != "FAVORITES_SPECIAL_TAG")
@@ -1504,7 +1427,6 @@ namespace ClipManager
             }
         }
 
-        
         private void BtnSaveTagInput_Click(object sender, RoutedEventArgs e)
         {
             string name = TxtTagInput.Text.Trim();
@@ -1527,20 +1449,17 @@ namespace ClipManager
             if (PlayerOverlay.Visibility == Visibility.Visible) VideoPlayer.Visibility = Visibility.Visible;
         }
 
-        
-        private void BtnCancelTagInput_Click(object? sender, RoutedEventArgs? e)
+        private void BtnCancelTagInput_Click(object sender, RoutedEventArgs e)
         {
             TagInputOverlay.Visibility = Visibility.Collapsed;
             if (PlayerOverlay.Visibility == Visibility.Visible) VideoPlayer.Visibility = Visibility.Visible;
         }
 
-        
         private void TagsListBox_PreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (sender is ListBoxItem item) item.IsSelected = true;
         }
 
-        
         private async void MenuTagDelete_Click(object sender, RoutedEventArgs e)
         {
             if (TagsListBox.SelectedItem is ClipTag t && t.Id != "FAVORITES_SPECIAL_TAG")
@@ -1550,10 +1469,10 @@ namespace ClipManager
                     TagsList.Remove(t);
                     SaveTags();
 
-                    
+                    // clean orphans
                     var keys = _clipTagMap.Keys.ToList();
                     bool modified = false;
-                    foreach (var k in keys)
+                    foreach(var k in keys)
                     {
                         if (_clipTagMap[k].Contains(t.Id))
                         {
@@ -1567,13 +1486,12 @@ namespace ClipManager
             }
         }
 
-        
-        private static VideoClip CreateClipModel(string file, bool isFavorite, Dictionary<string, HashSet<string>> clipMapSnapshot, List<ClipTag> tagsListSnapshot)
+        private VideoClip CreateClipModel(string file, string fileCreatedStr, bool isFavorite, Dictionary<string, HashSet<string>> clipMapSnapshot, List<ClipTag> tagsListSnapshot)
         {
             DateTime ct = File.GetCreationTime(file);
             long fileSizeInBytes = new FileInfo(file).Length;
-            string fileSizeText = fileSizeInBytes >= 1048576
-                ? $"{fileSizeInBytes / 1048576.0:F1} MB"
+            string fileSizeText = fileSizeInBytes >= 1048576 
+                ? $"{fileSizeInBytes / 1048576.0:F1} MB" 
                 : $"{fileSizeInBytes / 1024.0:F1} KB";
 
             var clip = new VideoClip
@@ -1600,7 +1518,6 @@ namespace ClipManager
             return clip;
         }
 
-        
         private void SpecialTagsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (SpecialTagsListBox.SelectedItem is ClipTag tag)
@@ -1646,8 +1563,7 @@ namespace ClipManager
             }
         }
 
-        
-        private async void TagsListBox_SelectionChanged(object? sender, SelectionChangedEventArgs? e)
+        private async void TagsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (TagsListBox.SelectedItem is ClipTag tag)
             {
@@ -1670,8 +1586,9 @@ namespace ClipManager
                 var clipMapSnapshot = new Dictionary<string, HashSet<string>>(_clipTagMap);
                 var favoritesSnapshot = new HashSet<string>(_favorites);
                 var tagsListSnapshot = TagsList.ToList();
-                var result = await Task.Run(() =>
-                {
+                string fileCreatedStr = GetString("TxtFileCreated");
+
+                var result = await Task.Run(() => {
                     var temp = new List<VideoClip>();
                     var validMapUpdates = new Dictionary<string, HashSet<string>>();
                     bool cleanupNeeded = false;
@@ -1684,7 +1601,7 @@ namespace ClipManager
                             if (File.Exists(file))
                             {
                                 validMapUpdates[file] = kvp.Value;
-                                temp.Add(CreateClipModel(file, favoritesSnapshot.Contains(file), clipMapSnapshot, tagsListSnapshot));
+                                temp.Add(CreateClipModel(file, fileCreatedStr, favoritesSnapshot.Contains(file), clipMapSnapshot, tagsListSnapshot));
                             }
                             else
                             {
@@ -1693,7 +1610,7 @@ namespace ClipManager
                         }
                         else
                         {
-                            validMapUpdates[kvp.Key] = kvp.Value;
+                             validMapUpdates[kvp.Key] = kvp.Value;
                         }
                     }
                     return (temp, cleanupNeeded, validMapUpdates);
@@ -1747,15 +1664,15 @@ namespace ClipManager
             }
         }
 
-        
         private async void RefreshFavorites()
         {
             Clips.Clear();
             var favoritesSnapshot = new HashSet<string>(_favorites);
             var clipMapSnapshot = new Dictionary<string, HashSet<string>>(_clipTagMap);
             var tagsListSnapshot = TagsList.ToList();
-            var result = await Task.Run(() =>
-            {
+            string fileCreatedStr = GetString("TxtFileCreated");
+
+            var result = await Task.Run(() => {
                 var temp = new List<VideoClip>();
                 var validFavorites = new List<string>();
                 foreach (string file in favoritesSnapshot)
@@ -1763,7 +1680,7 @@ namespace ClipManager
                     if (File.Exists(file))
                     {
                         validFavorites.Add(file);
-                        temp.Add(CreateClipModel(file, true, clipMapSnapshot, tagsListSnapshot));
+                        temp.Add(CreateClipModel(file, fileCreatedStr, true, clipMapSnapshot, tagsListSnapshot));
                     }
                 }
                 return (temp, validFavorites);
@@ -1778,7 +1695,6 @@ namespace ClipManager
             ApplySearchAndSort();
         }
 
-        
         private async void RefreshAllClips()
         {
             Clips.Clear();
@@ -1788,25 +1704,23 @@ namespace ClipManager
             var favoritesSnapshot = new HashSet<string>(_favorites);
             var clipMapSnapshot = new Dictionary<string, HashSet<string>>(_clipTagMap);
             var tagsListSnapshot = TagsList.ToList();
+            string fileCreatedStr = GetString("TxtFileCreated");
             string bp = _basePath;
 
-            var temp = await Task.Run(() =>
-            {
+            var temp = await Task.Run(() => {
                 var list = new List<string>();
-                try
-                {
+                try {
                     list.AddRange(Directory.GetFiles(bp, "*.mp4"));
                     foreach (string path in Directory.GetDirectories(bp))
                     {
                         list.AddRange(Directory.GetFiles(path, "*.mp4"));
                     }
-                }
-                catch { }
+                } catch { }
 
                 var outList = new List<VideoClip>();
                 foreach (string file in list)
                 {
-                    outList.Add(CreateClipModel(file, favoritesSnapshot.Contains(file), clipMapSnapshot, tagsListSnapshot));
+                    outList.Add(CreateClipModel(file, fileCreatedStr, favoritesSnapshot.Contains(file), clipMapSnapshot, tagsListSnapshot));
                 }
                 return outList;
             });
@@ -1815,7 +1729,6 @@ namespace ClipManager
             ApplySearchAndSort();
         }
 
-        
         private async void RefreshRecentClips()
         {
             RecentClips.Clear();
@@ -1825,19 +1738,17 @@ namespace ClipManager
             var favoritesSnapshot = new HashSet<string>(_favorites);
             var clipMapSnapshot = new Dictionary<string, HashSet<string>>(_clipTagMap);
             var tagsListSnapshot = TagsList.ToList();
+            string fileCreatedStr = GetString("TxtFileCreated");
             string bp = _basePath;
 
-            var temp = await Task.Run(() =>
-            {
+            var temp = await Task.Run(() => {
                 var list = new List<string>();
-                try
-                {
+                try {
                     foreach (string path in Directory.GetDirectories(bp))
                     {
                         list.AddRange(Directory.GetFiles(path, "*.mp4"));
                     }
-                }
-                catch { }
+                } catch { }
 
                 var topFiles = list.Select(f => new FileInfo(f))
                                    .OrderByDescending(fi => fi.CreationTime)
@@ -1847,7 +1758,7 @@ namespace ClipManager
                 var outList = new List<VideoClip>();
                 foreach (var fi in topFiles)
                 {
-                    outList.Add(CreateClipModel(fi.FullName, favoritesSnapshot.Contains(fi.FullName), clipMapSnapshot, tagsListSnapshot));
+                    outList.Add(CreateClipModel(fi.FullName, fileCreatedStr, favoritesSnapshot.Contains(fi.FullName), clipMapSnapshot, tagsListSnapshot));
                 }
                 return outList;
             });
@@ -1863,19 +1774,19 @@ namespace ClipManager
             if (RecentClipsList != null) RecentClipsList.Visibility = RecentClips.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        
         private async void RefreshCurrentFolder(string path)
         {
             Clips.Clear();
             var favoritesSnapshot = new HashSet<string>(_favorites);
             var clipMapSnapshot = new Dictionary<string, HashSet<string>>(_clipTagMap);
             var tagsListSnapshot = TagsList.ToList();
-            var temp = await Task.Run(() =>
-            {
+            string fileCreatedStr = GetString("TxtFileCreated");
+
+            var temp = await Task.Run(() => {
                 var list = new List<VideoClip>();
                 foreach (string file in Directory.GetFiles(path, "*.mp4"))
                 {
-                    list.Add(CreateClipModel(file, favoritesSnapshot.Contains(file), clipMapSnapshot, tagsListSnapshot));
+                    list.Add(CreateClipModel(file, fileCreatedStr, favoritesSnapshot.Contains(file), clipMapSnapshot, tagsListSnapshot));
                 }
                 return list;
             });
@@ -1892,8 +1803,7 @@ namespace ClipManager
                 return;
             _lastUp = DateTime.Now;
             await Task.Delay(500);
-            _ = Dispatcher.BeginInvoke(new Action(() =>
-            {
+            Dispatcher.BeginInvoke(new Action(() => {
                 if (GameFolderList.SelectedItem is GameFolder f)
                 {
                     if (Directory.Exists(f.FullPath)) RefreshCurrentFolder(f.FullPath);
@@ -1912,37 +1822,30 @@ namespace ClipManager
             }));
         }
 
-        
         private void UpdatePlayPauseIcon(bool isPlaying)
         {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
+            Dispatcher.BeginInvoke(new Action(() => {
                 if (PlayPauseButton.Content is System.Windows.Controls.Image img)
                 {
-                    try
-                    {
-                        img.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(isPlaying ? "pack://application:,,,/images/pause.png" : "pack://application:,,,/images/play.png"));
-                    }
-                    catch { }
+                    try {
+                        img.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(isPlaying ? "pack://application:,,,/Images/pause.png" : "pack://application:,,,/Images/play.png"));
+                    } catch {}
                 }
             }));
         }
 
-        
         private void ShowPlayPauseAnimation(bool willPlay)
         {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
+            Dispatcher.BeginInvoke(new Action(() => {
                 if (PlayPauseOverlayIcon != null)
                 {
-                    try
-                    {
+                    try {
                         if (PlayPausePopup != null)
                         {
                             PlayPausePopup.IsOpen = true;
                         }
 
-                        PlayPauseOverlayIcon.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(willPlay ? "pack://application:,,,/images/play.png" : "pack://application:,,,/images/pause.png"));
+                        PlayPauseOverlayIcon.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(willPlay ? "pack://application:,,,/Images/play.png" : "pack://application:,,,/Images/pause.png"));
                         var anim = new System.Windows.Media.Animation.DoubleAnimation
                         {
                             From = 0.8,
@@ -1950,25 +1853,22 @@ namespace ClipManager
                             Duration = new Duration(TimeSpan.FromMilliseconds(500)),
                             FillBehavior = System.Windows.Media.Animation.FillBehavior.Stop
                         };
-                        anim.Completed += (s, e) =>
-                        {
+                        anim.Completed += (s, e) => {
                             PlayPauseOverlayIcon.Opacity = 0;
                             if (PlayPausePopup != null) PlayPausePopup.IsOpen = false;
                         };
                         PlayPauseOverlayIcon.BeginAnimation(UIElement.OpacityProperty, anim);
                         PlayPauseOverlayIcon.Opacity = 0.8;
-                    }
-                    catch { }
+                    } catch {}
                 }
             }));
         }
 
-        private object? _currentNavState;
-        private readonly Stack<object> _backHistory = new();
-        private readonly Stack<object> _forwardHistory = new();
+        private object _currentNavState;
+        private Stack<object> _backHistory = new Stack<object>();
+        private Stack<object> _forwardHistory = new Stack<object>();
         private bool _isNavigating = false;
 
-        
         private void RegisterNavigation(object item)
         {
             if (_isNavigating || item == null) return;
@@ -1980,10 +1880,9 @@ namespace ClipManager
             _currentNavState = item;
         }
 
-        
         private void NavigateBack()
         {
-            
+            // Close overlays if they are currently active
             if (SettingsOverlay != null && SettingsOverlay.Visibility == Visibility.Visible) { BtnCloseSettings_Click(null, null); return; }
             if (TagInputOverlay != null && TagInputOverlay.Visibility == Visibility.Visible) { BtnCancelTagInput_Click(null, null); return; }
             if (FolderInputOverlay != null && FolderInputOverlay.Visibility == Visibility.Visible) { BtnCancelFolderInput_Click(null, null); return; }
@@ -2006,7 +1905,6 @@ namespace ClipManager
             }
         }
 
-        
         private void NavigateForward()
         {
             if (PlayerOverlay.Visibility == Visibility.Visible)
@@ -2021,7 +1919,6 @@ namespace ClipManager
             }
         }
 
-        
         private void RestoreNavigationState(object state)
         {
             _isNavigating = true;
@@ -2149,17 +2046,13 @@ namespace ClipManager
                     long oldTime = _mediaPlayer.Time;
                     _mediaPlayer.NextFrame();
 
-                    
-                    _ = Task.Run(async () =>
-                    {
-                        for (int i = 0; i < 20; i++)
-                        {
+                    // Poll for new time since VLC updates it asynchronously
+                    Task.Run(async () => {
+                        for (int i = 0; i < 20; i++) {
                             await Task.Delay(10);
                             long t = _mediaPlayer.Time;
-                            if (t != oldTime && t >= 0)
-                            {
-                                _ = Dispatcher.BeginInvoke(new Action(() =>
-                                {
+                            if (t != oldTime && t >= 0) {
+                                Dispatcher.BeginInvoke(new Action(() => {
                                     _isUpdatingFromPlayer = true;
                                     ProgressSlider.Value = t;
                                     TimeDisplay.Text = $"{TimeSpan.FromMilliseconds(t):mm\\:ss\\.ff} / {TimeSpan.FromMilliseconds(_mediaPlayer.Length):mm\\:ss}";
@@ -2173,7 +2066,6 @@ namespace ClipManager
             }
         }
 
-        
         private List<VideoClip> SortClipList(List<VideoClip> list)
         {
             int idx = SortComboBox?.SelectedIndex ?? 0;
@@ -2185,7 +2077,6 @@ namespace ClipManager
                                                            : list.OrderBy(c => c.ActualFileSize).ToList())));
         }
 
-        
         private async Task<bool> WaitForFileAsync(string p)
         {
             for (int i = 0; i < 10; i++)
@@ -2209,7 +2100,6 @@ namespace ClipManager
             ApplySearchAndSort();
         }
 
-        
         private async Task GenerateAndLoadWaveformAsync(VideoClip clip)
         {
             try
@@ -2239,8 +2129,7 @@ namespace ClipManager
 
                 if (File.Exists(waveFile) && _currentClip == clip)
                 {
-                    _ = Dispatcher.BeginInvoke(new Action(() =>
-                    {
+                    Dispatcher.BeginInvoke(new Action(() => {
                         var bmp = new System.Windows.Media.Imaging.BitmapImage();
                         bmp.BeginInit();
                         bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
@@ -2254,7 +2143,6 @@ namespace ClipManager
             catch { }
         }
 
-        
         private void ClipListItem_PreviewMouseRightButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (sender is ListBoxItem item)
@@ -2296,17 +2184,15 @@ namespace ClipManager
                 VideoPlayer.MediaPlayer = _mediaPlayer;
                 UpdatePlayPauseIcon(true);
 
-                EventHandler<EventArgs>? playingHandler = null;
+                EventHandler<EventArgs> playingHandler = null;
                 playingHandler = async (s, ev) =>
                 {
-                    if (_mediaPlayer != null && playingHandler != null)
+                    if (_mediaPlayer != null)
                         _mediaPlayer.Playing -= playingHandler;
 
                     await Task.Delay(50);
-                    _ = Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        if (VideoPlayer.ActualWidth > 0)
-                        {
+                    Dispatcher.BeginInvoke(new Action(() => {
+                        if (VideoPlayer.ActualWidth > 0) {
                             VideoPlayer.Width = VideoPlayer.ActualWidth + 1;
                             VideoPlayer.UpdateLayout();
                             VideoPlayer.Width = double.NaN;
@@ -2320,7 +2206,6 @@ namespace ClipManager
             }
         }
 
-        
         private void VideoPlayer_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (e.ClickCount == 2 && PlayerOverlay.Visibility == Visibility.Visible)
@@ -2331,7 +2216,6 @@ namespace ClipManager
             }
         }
 
-        
         private void EnterVideoFullscreen()
         {
             if (_isVideoFullscreen) return;
@@ -2383,7 +2267,6 @@ namespace ClipManager
             _isVideoFullscreen = true;
         }
 
-        
         private void ExitVideoFullscreen()
         {
             if (!_isVideoFullscreen) return;
@@ -2415,7 +2298,6 @@ namespace ClipManager
             _isVideoFullscreen = false;
         }
 
-        
         private void PausePlayback()
         {
             if (_mediaPlayer != null && _mediaPlayer.IsPlaying)
@@ -2425,7 +2307,6 @@ namespace ClipManager
             }
         }
 
-        
         private void StopPlayback()
         {
             if (_mediaPlayer != null)
@@ -2439,8 +2320,7 @@ namespace ClipManager
             }
         }
 
-        
-        private void ClosePlayer_Click(object? sender, RoutedEventArgs? e)
+        private void ClosePlayer_Click(object sender, RoutedEventArgs e)
         {
             if (_isVideoFullscreen)
                 ExitVideoFullscreen();
@@ -2449,10 +2329,9 @@ namespace ClipManager
             if (VideoPlayer != null) VideoPlayer.Visibility = Visibility.Hidden;
         }
         private void MediaPlayer_LengthChanged(
-            object? sender, MediaPlayerLengthChangedEventArgs e)
+            object sender, MediaPlayerLengthChangedEventArgs e)
         {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
+            Dispatcher.BeginInvoke(new Action(() => {
                 _isUpdatingFromPlayer = true;
                 ProgressSlider.Maximum = e.Length;
                 _videoDurationMs = e.Length;
@@ -2462,12 +2341,11 @@ namespace ClipManager
                 _isUpdatingFromPlayer = false;
             }));
         }
-        private void MediaPlayer_TimeChanged(object? sender,
+        private void MediaPlayer_TimeChanged(object sender,
                                              MediaPlayerTimeChangedEventArgs e)
         {
             if (_isScrubbing) return;
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
+            Dispatcher.BeginInvoke(new Action(() => {
                 if (_isScrubbing) return;
                 _isUpdatingFromPlayer = true;
                 ProgressSlider.Value = e.Time;
@@ -2477,16 +2355,13 @@ namespace ClipManager
             }));
         }
 
-        
-        private void MediaPlayer_EndReached(object? sender, EventArgs e)
+        private void MediaPlayer_EndReached(object sender, EventArgs e)
         {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
+            Dispatcher.BeginInvoke(new Action(() => {
                 UpdatePlayPauseIcon(false);
             }));
         }
 
-        
         private void ProgressSlider_DragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
         {
             _isScrubbing = true;
@@ -2501,7 +2376,6 @@ namespace ClipManager
             }
         }
 
-        
         private void ProgressSlider_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
         {
             _isScrubbing = false;
@@ -2543,11 +2417,10 @@ namespace ClipManager
                 }
                 else
                 {
-                    if ((DateTime.Now - _lastScrubTime).TotalMilliseconds > 40) 
+                    if ((DateTime.Now - _lastScrubTime).TotalMilliseconds > 40) // Limit seeks to ~25fps to prevent VLC choke
                     {
                         _lastScrubTime = DateTime.Now;
-                        Task.Run(() =>
-                        {
+                        Task.Run(() => {
                             try { if (_mediaPlayer != null) _mediaPlayer.Time = t; } catch { }
                         });
                     }
@@ -2580,7 +2453,6 @@ namespace ClipManager
                 SpeedText.Text = $"{e.NewValue:0.00}x";
             }
         }
-        
         private void PlayFromSelectionButton_Click(object sender, RoutedEventArgs e)
         {
             if (_mediaPlayer == null || _currentClip == null) return;
@@ -2588,8 +2460,7 @@ namespace ClipManager
             if (_mediaPlayer.State == LibVLCSharp.Shared.VLCState.Ended || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Stopped || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Error)
             {
                 _mediaPlayer.Play(new Media(_libVLC, new Uri(_currentClip.FullPath)));
-                Task.Run(async () =>
-                {
+                Task.Run(async () => {
                     await Task.Delay(250);
                     _mediaPlayer.Time = _trimStartMs;
                 });
@@ -2606,8 +2477,7 @@ namespace ClipManager
             UpdatePlayPauseIcon(true);
         }
 
-        
-        private void PlayPauseButton_Click(object? sender, RoutedEventArgs? e)
+        private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
         {
             if (_mediaPlayer == null)
                 return;
@@ -2670,7 +2540,6 @@ namespace ClipManager
             UpdateBracketsUI();
         }
 
-        
         private void UpdateBracketsUI()
         {
             if (TrimCanvas.ActualWidth == 0 || _videoDurationMs <= 1)
@@ -2686,7 +2555,7 @@ namespace ClipManager
             TrimHighlight.Width = Math.Max(0, ex - sx - ThumbStart.ActualWidth);
         }
 
-        private TaskCompletionSource<System.Windows.MessageBoxResult>? _saveTcs,
+        private TaskCompletionSource<System.Windows.MessageBoxResult> _saveTcs,
             _delTcs;
 
         private async Task<System.Windows.MessageBoxResult>
@@ -2697,27 +2566,23 @@ namespace ClipManager
             SaveConfirmOverlay.Visibility = Visibility.Visible;
             return await _saveTcs.Task;
         }
-        
         private void BtnReplaceOverlay_Click(object sender, RoutedEventArgs e)
         {
             SaveConfirmOverlay.Visibility = Visibility.Collapsed;
             _saveTcs?.TrySetResult(System.Windows.MessageBoxResult.Yes);
         }
-        
         private void BtnSaveNewOverlay_Click(object sender, RoutedEventArgs e)
         {
             SaveConfirmOverlay.Visibility = Visibility.Collapsed;
             _saveTcs?.TrySetResult(System.Windows.MessageBoxResult.No);
         }
-        
-        private void BtnCancelOverlay_Click(object? sender, RoutedEventArgs? e)
+        private void BtnCancelOverlay_Click(object sender, RoutedEventArgs e)
         {
             SaveConfirmOverlay.Visibility = Visibility.Collapsed;
             _saveTcs?.TrySetResult(System.Windows.MessageBoxResult.Cancel);
         }
 
-        
-        private void MenuCopy_Click(object? sender, RoutedEventArgs? e)
+        private void MenuCopy_Click(object sender, RoutedEventArgs e)
         {
             var selectedItems = ClipList.SelectedItems.Count > 0 ? ClipList.SelectedItems : RecentClipsList.SelectedItems;
             if (selectedItems.Count == 0)
@@ -2726,21 +2591,19 @@ namespace ClipManager
             foreach (VideoClip c in selectedItems) f.Add(c.FullPath);
             System.Windows.Clipboard.SetFileDropList(f);
         }
-        
-        private void MenuCut_Click(object? sender, RoutedEventArgs? e)
+        private void MenuCut_Click(object sender, RoutedEventArgs e)
         {
             var selectedItems = ClipList.SelectedItems.Count > 0 ? ClipList.SelectedItems : RecentClipsList.SelectedItems;
             if (selectedItems.Count == 0)
                 return;
             var f = new System.Collections.Specialized.StringCollection();
             foreach (VideoClip c in selectedItems) f.Add(c.FullPath);
-            System.Windows.DataObject d = new();
+            System.Windows.DataObject d = new System.Windows.DataObject();
             d.SetFileDropList(f);
             d.SetData("Preferred DropEffect", new MemoryStream(BitConverter.GetBytes(2)));
             System.Windows.Clipboard.SetDataObject(d);
         }
-        
-        private void MenuClipPaste_Click(object? sender, RoutedEventArgs? e)
+        private void MenuClipPaste_Click(object sender, RoutedEventArgs e)
         {
             if (GameFolderList.SelectedItem is GameFolder f &&
                 System.Windows.Clipboard.ContainsFileDropList())
@@ -2749,14 +2612,14 @@ namespace ClipManager
             }
         }
 
-        
         private void PasteFilesToFolder(string folderPath)
         {
             bool isMove = false;
             var dataObj = System.Windows.Clipboard.GetDataObject();
             if (dataObj != null && dataObj.GetDataPresent("Preferred DropEffect"))
             {
-                if (dataObj.GetData("Preferred DropEffect") is MemoryStream stream)
+                var stream = dataObj.GetData("Preferred DropEffect") as MemoryStream;
+                if (stream != null)
                 {
                     byte[] bytes = stream.ToArray();
                     if (bytes.Length >= 4)
@@ -2766,9 +2629,8 @@ namespace ClipManager
                 }
             }
 
-            foreach (string? file in System.Windows.Clipboard.GetFileDropList())
+            foreach (string file in System.Windows.Clipboard.GetFileDropList())
             {
-                if (string.IsNullOrWhiteSpace(file)) continue;
                 if (File.Exists(file) && file.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
                 {
                     try
@@ -2792,7 +2654,7 @@ namespace ClipManager
         private async Task<System.Windows.MessageBoxResult>
         ShowDeleteConfirmOverlayAsync(string tk, string mk)
         {
-            
+            // Explicitly use System.Windows.Controls.TextBlock to resolve ambiguity
             if (TxtDeleteTitle is System.Windows.Controls.TextBlock titleLabel)
                 titleLabel.SetResourceReference(
                     System.Windows.Controls.TextBlock.TextProperty, tk);
@@ -2808,21 +2670,18 @@ namespace ClipManager
                 VideoPlayer.Visibility = Visibility.Visible;
             return res;
         }
-        
         private void BtnConfirmDelete_Click(object sender, RoutedEventArgs e)
         {
             DeleteConfirmOverlay.Visibility = Visibility.Collapsed;
             _delTcs?.TrySetResult(System.Windows.MessageBoxResult.Yes);
         }
-        
-        private void BtnCancelDelete_Click(object? sender, RoutedEventArgs? e)
+        private void BtnCancelDelete_Click(object sender, RoutedEventArgs e)
         {
             DeleteConfirmOverlay.Visibility = Visibility.Collapsed;
             _delTcs?.TrySetResult(System.Windows.MessageBoxResult.No);
         }
 
-        
-        private async void MenuDelete_Click(object? sender, RoutedEventArgs? e)
+        private async void MenuDelete_Click(object sender, RoutedEventArgs e)
         {
             var selectedItems = ClipList.SelectedItems.Count > 0 ? ClipList.SelectedItems : RecentClipsList.SelectedItems;
             if (selectedItems.Count == 0)
@@ -2859,22 +2718,19 @@ namespace ClipManager
             }
         }
 
-        private VideoClip? _clipRen;
-        
+        private VideoClip _clipRen;
         private void MenuRename_Click(object sender, RoutedEventArgs e)
         {
             var selectedItem = ClipList.SelectedItems.Count > 0 ? ClipList.SelectedItem : RecentClipsList.SelectedItem;
             if (selectedItem == null)
                 return;
             _clipRen = selectedItem as VideoClip;
-            if (_clipRen == null) return;
             TxtRenameInput.Text = Path.GetFileNameWithoutExtension(_clipRen.Name);
             RenameOverlay.Visibility = Visibility.Visible;
             VideoPlayer.Visibility = Visibility.Hidden;
             TxtRenameInput.Focus();
             TxtRenameInput.SelectAll();
         }
-        
         private bool MovePathInFavorites(string oldPath, string newPath)
         {
             var existing = _favorites.FirstOrDefault(p => string.Equals(p, oldPath, StringComparison.OrdinalIgnoreCase));
@@ -2885,7 +2741,6 @@ namespace ClipManager
             return true;
         }
 
-        
         private bool MovePathInClipTags(string oldPath, string newPath)
         {
             var existing = _clipTagMap.Keys.FirstOrDefault(k => string.Equals(k, oldPath, StringComparison.OrdinalIgnoreCase));
@@ -2897,7 +2752,6 @@ namespace ClipManager
             return true;
         }
 
-        
         private void MovePathInThumbnailCache(string oldPath, string newPath)
         {
             var existing = _thumbnailCache.Keys.FirstOrDefault(k => string.Equals(k, oldPath, StringComparison.OrdinalIgnoreCase));
@@ -2908,7 +2762,6 @@ namespace ClipManager
             _thumbnailCache[newPath] = thumb;
         }
 
-        
         private void UpdateClipReferencesAfterRename(string oldPath, string newPath)
         {
             string newName = Path.GetFileName(newPath);
@@ -2936,13 +2789,11 @@ namespace ClipManager
             }
         }
 
-        
         private void BtnSaveRename_Click(object sender, RoutedEventArgs e)
         {
             if (_clipRen != null && !string.IsNullOrWhiteSpace(TxtRenameInput.Text))
             {
-                string baseDir = Path.GetDirectoryName(_clipRen.FullPath) ?? _basePath;
-                string np = Path.Combine(baseDir,
+                string np = Path.Combine(Path.GetDirectoryName(_clipRen.FullPath),
                                          TxtRenameInput.Text + ".mp4");
                 try
                 {
@@ -2971,8 +2822,7 @@ namespace ClipManager
             if (PlayerOverlay.Visibility == Visibility.Visible)
                 VideoPlayer.Visibility = Visibility.Visible;
         }
-        
-        private void BtnCancelRename_Click(object? sender, RoutedEventArgs? e)
+        private void BtnCancelRename_Click(object sender, RoutedEventArgs e)
         {
             RenameOverlay.Visibility = Visibility.Collapsed;
             if (PlayerOverlay.Visibility == Visibility.Visible)
@@ -2986,7 +2836,6 @@ namespace ClipManager
                 item.IsSelected = true;
         }
 
-        
         private void BtnOpenFolder_Click(object sender, RoutedEventArgs e)
         {
             string pathToOpen = _basePath;
@@ -3007,8 +2856,7 @@ namespace ClipManager
 
         private enum FolderMode { None, Create, Rename }
         private FolderMode _fMode = FolderMode.None;
-        private GameFolder? _fRen = null;
-        
+        private GameFolder _fRen = null;
         private void BtnCreateFolder_Click(object sender, RoutedEventArgs e)
         {
             _fMode = FolderMode.Create;
@@ -3021,7 +2869,6 @@ namespace ClipManager
             VideoPlayer.Visibility = Visibility.Hidden;
             TxtFolderInput.Focus();
         }
-        
         private void MenuFolderRename_Click(object sender, RoutedEventArgs e)
         {
             if (GameFolderList.SelectedItem is GameFolder f)
@@ -3039,7 +2886,6 @@ namespace ClipManager
                 TxtFolderInput.SelectAll();
             }
         }
-        
         private void BtnSaveFolderInput_Click(object sender, RoutedEventArgs e)
         {
             string inp = TxtFolderInput.Text.Trim();
@@ -3060,8 +2906,7 @@ namespace ClipManager
             if (PlayerOverlay.Visibility == Visibility.Visible)
                 VideoPlayer.Visibility = Visibility.Visible;
         }
-        
-        private void BtnCancelFolderInput_Click(object? sender, RoutedEventArgs? e)
+        private void BtnCancelFolderInput_Click(object sender, RoutedEventArgs e)
         {
             FolderInputOverlay.Visibility = Visibility.Collapsed;
             if (PlayerOverlay.Visibility == Visibility.Visible)
@@ -3087,7 +2932,6 @@ namespace ClipManager
                     System.Windows.MessageBox.Show(ex.Message);
                 }
         }
-        
         private void MenuFolderPaste_Click(object sender, RoutedEventArgs e)
         {
             if (GameFolderList.SelectedItem is GameFolder f &&
@@ -3097,7 +2941,6 @@ namespace ClipManager
             }
         }
 
-        
         private async void BtnCut_Click(object sender, RoutedEventArgs e)
         {
             if (_currentClip == null || _trimStartMs >= _trimEndMs)
@@ -3129,7 +2972,7 @@ namespace ClipManager
                 _mediaPlayer.Media = null;
             }
             await Task.Delay(250);
-            
+            // Changed to use the unique BtnPerformCut name
             BtnPerformCut.IsEnabled = false;
             ExportOverlay.Visibility = Visibility.Visible;
             ExportProgressBar.Value = 0;
@@ -3141,7 +2984,7 @@ namespace ClipManager
                 Directory.CreateDirectory(ffmpegPath);
                 FFmpeg.SetExecutablesPath(ffmpegPath);
                 await FFmpegDownloader.GetLatestVersion(FFmpegVersion.Official, ffmpegPath);
-                string inp = _currentClip.FullPath, dir = Path.GetDirectoryName(inp) ?? _basePath,
+                string inp = _currentClip.FullPath, dir = Path.GetDirectoryName(inp),
                        name = Path.GetFileNameWithoutExtension(inp);
 
                 string outDir = string.IsNullOrEmpty(_outPath) ? dir : _outPath;
@@ -3162,12 +3005,12 @@ namespace ClipManager
                 {
                     double durationSec = (_trimEndMs - _trimStartMs) / 1000.0;
                     if (durationSec <= 0) durationSec = 1;
-                    double targetTbps = (_targetSizeMb * 8000.0 * 0.975) / durationSec;
+                    double targetTbps = (_targetSizeMb * 8000.0 * 0.975) / durationSec; 
                     int vBitrate = (int)Math.Max(100, targetTbps - 128);
 
                     string encoder = _renderEngine == "GPU" ? "h264_nvenc" : "libx264";
                     string audioFilter = normalizeAudio ? " -af loudnorm" : "";
-                    conv.AddParameter($"-c:v {encoder} -preset fast -b:v {vBitrate}k -maxrate {vBitrate}k -bufsize {vBitrate * 2}k -c:a aac -b:a 128k{audioFilter}");
+                    conv.AddParameter($"-c:v {encoder} -preset fast -b:v {vBitrate}k -maxrate {vBitrate}k -bufsize {vBitrate*2}k -c:a aac -b:a 128k{audioFilter}");
                 }
                 else
                 {
@@ -3182,8 +3025,7 @@ namespace ClipManager
                 }
                 conv.SetOutput(tmp);
 
-                conv.OnProgress += (s, a) => Dispatcher.BeginInvoke(new Action(() =>
-                {
+                conv.OnProgress += (s, a) => Dispatcher.BeginInvoke(new Action(() => {
                     ExportProgressBar.Value = a.Percent;
                     ExportProgressText.Text = $"{a.Percent}%";
                 }));
@@ -3212,22 +3054,15 @@ namespace ClipManager
             }
         }
 
-        
-        private Task<ImageSource?> GetThumbnailSTAAsync(string path)
+        private Task<ImageSource> GetThumbnailSTAAsync(string path)
         {
-            var tcs = new TaskCompletionSource<ImageSource?>();
+            var tcs = new TaskCompletionSource<ImageSource>();
             _staJobs.Add(() =>
             {
                 try
                 {
                     using var sf = ShellFile.FromFilePath(path);
-                    var thumb = sf?.Thumbnail;
-                    var b = thumb?.BitmapSource;
-                    if (b == null)
-                    {
-                        tcs.SetResult(null);
-                        return;
-                    }
+                    var b = sf.Thumbnail.BitmapSource;
                     b.Freeze();
                     tcs.SetResult(b);
                 }
@@ -3239,7 +3074,6 @@ namespace ClipManager
             return tcs.Task;
         }
 
-        
         private async void LoadThumbnailAsync(VideoClip clip)
         {
             if (_thumbnailCache.TryGetValue(clip.FullPath, out var t))
@@ -3259,10 +3093,9 @@ namespace ClipManager
             EnqueueHoverThumbnailGeneration(clip);
         }
 
-        private readonly Queue<VideoClip> _thumbnailQueue = new();
+        private Queue<VideoClip> _thumbnailQueue = new Queue<VideoClip>();
         private bool _isProcessingThumbnails = false;
 
-        
         private void EnqueueHoverThumbnailGeneration(VideoClip clip)
         {
             if (!_thumbnailQueue.Contains(clip))
@@ -3275,7 +3108,6 @@ namespace ClipManager
             }
         }
 
-        
         private async Task DownloadFFmpegIfNeeded()
         {
             string ffmpegPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Clipless", "ffmpeg");
@@ -3287,11 +3119,10 @@ namespace ClipManager
             }
         }
 
-        
         private async void ProcessThumbnailQueueAsync()
         {
             _isProcessingThumbnails = true;
-            try { await DownloadFFmpegIfNeeded(); } catch { }
+            try { await DownloadFFmpegIfNeeded(); } catch { } 
 
             while (_thumbnailQueue.Count > 0)
             {
@@ -3301,14 +3132,13 @@ namespace ClipManager
             _isProcessingThumbnails = false;
         }
 
-        
-        private static string GetCacheFolderName(VideoClip clip)
+        private string GetCacheFolderName(VideoClip clip)
         {
             string input = clip.FullPath + clip.ActualCreationTime.Ticks;
-            return string.Concat(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(input)).Select(b => b.ToString("x2")));
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            return string.Concat(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input)).Select(b => b.ToString("x2")));
         }
 
-        
         private async Task GenerateHoverFramesAsync(VideoClip clip)
         {
             string cachePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Clipless", "ThumbCache");
@@ -3320,7 +3150,7 @@ namespace ClipManager
             {
                 for (int i = 1; i <= 10; i++)
                 {
-                    if (!File.Exists(Path.Combine(clipCacheDir, $"frame_{i}.jpg")))
+                    if (!File.Exists(Path.Combine(clipCacheDir, $"frame_{i}.jpg"))) 
                     {
                         fullyCached = false;
                         break;
@@ -3352,8 +3182,7 @@ namespace ClipManager
 
             if (File.Exists(Path.Combine(clipCacheDir, "frame_1.jpg")))
             {
-                _ = Dispatcher.BeginInvoke(() =>
-                {
+                Dispatcher.BeginInvoke(() => {
                     if (clip.Thumbnail == clip.DefaultThumbnail || clip.DefaultThumbnail == null)
                     {
                         try
@@ -3366,26 +3195,25 @@ namespace ClipManager
                             bmp.Freeze();
                             clip.DefaultThumbnail = bmp;
                             if (_hoveredClip != clip) clip.Thumbnail = bmp;
-                        }
-                        catch { }
+                        } catch { }
                     }
                 });
             }
         }
 
-        private VideoClip? _hoveredClip;
-        private List<VideoClip> _currentClips = [];
+        private VideoClip _hoveredClip;
+        private List<VideoClip> _currentClips = new List<VideoClip>();
 
-        
         private void ApplySearchAndSort()
         {
+            if (_currentClips == null) return;
             Clips.Clear();
             var filtered = _currentClips.AsEnumerable();
 
             if (SearchBox != null && !string.IsNullOrWhiteSpace(SearchBox.Text))
             {
-                string query = SearchBox.Text;
-                filtered = filtered.Where(c => c.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
+                string query = SearchBox.Text.ToLowerInvariant();
+                filtered = filtered.Where(c => c.Name.ToLowerInvariant().Contains(query));
             }
 
             foreach (var clip in SortClipList(filtered.ToList()))
@@ -3397,14 +3225,12 @@ namespace ClipManager
             UpdateSizeStatusUI();
         }
 
-        
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (_isLoaded)
                 ApplySearchAndSort();
         }
 
-        
         private void Clip_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
         {
             if (sender is FrameworkElement fe && fe.DataContext is VideoClip clip)
@@ -3419,8 +3245,7 @@ namespace ClipManager
             }
         }
 
-        
-        private void HoverTimer_Tick(object? sender, EventArgs e)
+        private void HoverTimer_Tick(object sender, EventArgs e)
         {
             if (_hoveredClip != null)
             {
@@ -3430,7 +3255,6 @@ namespace ClipManager
             }
         }
 
-        
         private void UpdateHoverFrame()
         {
             if (_hoveredClip == null) return;
@@ -3444,7 +3268,7 @@ namespace ClipManager
             string framePath = Path.Combine(clipCacheDir, $"frame_{attemptIndex}.jpg");
             if (!File.Exists(framePath))
             {
-                for (int k = attemptIndex - 1; k >= 1; k--)
+                for(int k = attemptIndex - 1; k >= 1; k--)
                 {
                     string altPath = Path.Combine(clipCacheDir, $"frame_{k}.jpg");
                     if (File.Exists(altPath)) { framePath = altPath; attemptIndex = k; break; }
@@ -3472,7 +3296,6 @@ namespace ClipManager
             }
         }
 
-        
         private void Clip_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
         {
             if (sender is FrameworkElement fe && fe.DataContext is VideoClip clip)
@@ -3492,18 +3315,16 @@ namespace ClipManager
         private System.Windows.Point? _dragStartPoint;
         private bool _isRectangleSelecting;
         private System.Windows.Point _rectStartPoint;
-        private ScrollViewer? _clipListScrollViewer;
+        private ScrollViewer _clipListScrollViewer;
         private System.Windows.Threading.DispatcherTimer _scrollTimer;
         private double _scrollStartOffset;
         private System.Windows.Point _lastMousePos;
 
-        
         private void Clip_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             _dragStartPoint = e.GetPosition(null);
         }
 
-        
         private void Clip_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
             if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed && _dragStartPoint.HasValue && !_isRectangleSelecting)
@@ -3514,7 +3335,7 @@ namespace ClipManager
                 {
                     if (sender is FrameworkElement fe && fe.DataContext is VideoClip clip)
                     {
-                        var data = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, new[] { clip.FullPath });
+                        var data = new System.Windows.DataObject(System.Windows.DataFormats.FileDrop, new string[] { clip.FullPath });
                         System.Windows.DragDrop.DoDragDrop(fe, data, System.Windows.DragDropEffects.Copy);
                         _dragStartPoint = null;
                         e.Handled = true;
@@ -3523,15 +3344,14 @@ namespace ClipManager
             }
         }
 
-        
         private void ClipList_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (e.OriginalSource is FrameworkElement el && !(el.DataContext is VideoClip))
             {
-                
+                // Better ScrollBar detection: search UP the visual tree.
                 var scrollBar = FindVisualParent<System.Windows.Controls.Primitives.ScrollBar>((DependencyObject)e.OriginalSource);
 
-                
+                // If it's a ScrollBar or part of it, ignore rectangle logic.
                 if (scrollBar != null)
                 {
                     return;
@@ -3563,7 +3383,7 @@ namespace ClipManager
             }
         }
 
-        private static T? FindVisualParent<T>(DependencyObject? element) where T : DependencyObject
+        private T FindVisualParent<T>(DependencyObject element) where T : DependencyObject
         {
             while (element != null)
             {
@@ -3575,12 +3395,12 @@ namespace ClipManager
             return null;
         }
 
-        private static T? GetDescendantByType<T>(DependencyObject? element) where T : DependencyObject
+        private T GetDescendantByType<T>(DependencyObject element) where T : DependencyObject
         {
             if (element == null) return null;
-            if (element is T tElement) return tElement;
-            T? foundElement = null;
-            if (element is FrameworkElement fe) fe.ApplyTemplate();
+            if (element is T) return (T)element;
+            T foundElement = null;
+            if (element is FrameworkElement) (element as FrameworkElement).ApplyTemplate();
             for (int i = 0; i < VisualTreeHelper.GetChildrenCount(element); i++)
             {
                 DependencyObject visual = VisualTreeHelper.GetChild(element, i);
@@ -3590,7 +3410,6 @@ namespace ClipManager
             return foundElement;
         }
 
-        
         private void ClipList_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
             if (_isRectangleSelecting && e.LeftButton == System.Windows.Input.MouseButtonState.Pressed)
@@ -3600,18 +3419,17 @@ namespace ClipManager
             }
         }
 
-        
-        private void ScrollTimer_Tick(object? sender, EventArgs e)
+        private void ScrollTimer_Tick(object sender, EventArgs e)
         {
             if (_isRectangleSelecting && _clipListScrollViewer != null)
             {
                 bool scrolled = false;
-                if (_lastMousePos.Y < 20)
+                if (_lastMousePos.Y < 20) 
                 {
                     _clipListScrollViewer.ScrollToVerticalOffset(_clipListScrollViewer.VerticalOffset - 15);
                     scrolled = true;
                 }
-                else if (_lastMousePos.Y > SelectionCanvas.ActualHeight - 20)
+                else if (_lastMousePos.Y > SelectionCanvas.ActualHeight - 20) 
                 {
                     _clipListScrollViewer.ScrollToVerticalOffset(_clipListScrollViewer.VerticalOffset + 15);
                     scrolled = true;
@@ -3624,7 +3442,6 @@ namespace ClipManager
             }
         }
 
-        
         private void UpdateSelectionRectangle(System.Windows.Point currentPoint)
         {
             double scrollDiff = 0;
@@ -3649,17 +3466,16 @@ namespace ClipManager
             SelectionRectangle.Width = Math.Max(0, width);
             SelectionRectangle.Height = Math.Max(0, visHeight);
 
-            Rect selectionRect = new(x, y, width, height);
+            Rect selectionRect = new Rect(x, y, width, height);
 
             for (int i = 0; i < ClipList.Items.Count; i++)
             {
                 var container = ClipList.ItemContainerGenerator.ContainerFromIndex(i) as UIElement;
                 if (container != null)
                 {
-                    try
-                    {
+                    try {
                         System.Windows.Point containerTopLeft = container.TranslatePoint(new System.Windows.Point(0, 0), SelectionCanvas);
-                        Rect containerRect = new(containerTopLeft, container.RenderSize);
+                        Rect containerRect = new Rect(containerTopLeft, container.RenderSize);
 
                         if (selectionRect.IntersectsWith(containerRect))
                         {
@@ -3676,13 +3492,11 @@ namespace ClipManager
                                 ClipList.SelectedItems.Remove(ClipList.Items[i]);
                             }
                         }
-                    }
-                    catch { }
+                    } catch { }
                 }
             }
         }
 
-        
         private void ClipList_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (_isRectangleSelecting)
@@ -3696,15 +3510,13 @@ namespace ClipManager
 
         private void TrimCanvas_SizeChanged(
             object sender, SizeChangedEventArgs e) => UpdateBracketsUI();
-        
         private void BtnSettings_Click(object sender, RoutedEventArgs e)
         {
             LoadAudioDevices();
             SettingsOverlay.Visibility = Visibility.Visible;
             VideoPlayer.Visibility = Visibility.Hidden;
         }
-        
-        private void BtnCloseSettings_Click(object? sender, RoutedEventArgs? e)
+        private void BtnCloseSettings_Click(object sender, RoutedEventArgs e)
         {
             SaveSettings();
 
@@ -3723,7 +3535,6 @@ namespace ClipManager
                 VideoPlayer.Visibility = Visibility.Visible;
         }
 
-        
         private void TargetSizeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (TxtTargetSizeValue != null)
@@ -3733,7 +3544,6 @@ namespace ClipManager
             }
         }
 
-        
         private void RenderEngineComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (RenderEngineComboBox != null)
@@ -3742,7 +3552,6 @@ namespace ClipManager
             }
         }
 
-        
         private void FramerateComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (FramerateComboBox != null)
@@ -3751,7 +3560,6 @@ namespace ClipManager
             }
         }
 
-        
         private void LoadAudioDevices()
         {
             try
@@ -3760,9 +3568,9 @@ namespace ClipManager
                 var outDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active).ToList();
                 var inDevices = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active).ToList();
 
-                var outList = new List<AudioDeviceItem> { new() { Id = "", Name = GetString("TxtNone") } };
+                var outList = new List<AudioDeviceItem> { new AudioDeviceItem { Id = "", Name = GetString("TxtNone") } };
                 if (enumerator.HasDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia))
-                    outList.Insert(1, new() { Id = "Default", Name = $"{GetString("TxtDefault")} ({enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia).FriendlyName})" });
+                    outList.Insert(1, new AudioDeviceItem { Id = "Default", Name = $"{GetString("TxtDefault")} ({enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia).FriendlyName})" });
                 outList.AddRange(outDevices.Select(d => new AudioDeviceItem { Id = d.ID, Name = d.FriendlyName }));
                 if (AudioOutputComboBox != null)
                 {
@@ -3771,9 +3579,9 @@ namespace ClipManager
                     AudioOutputComboBox.SelectedItem = foundOut ?? outList.FirstOrDefault(x => x.Id == "Default") ?? outList[0];
                 }
 
-                var inList = new List<AudioDeviceItem> { new() { Id = "", Name = GetString("TxtNone") } };
+                var inList = new List<AudioDeviceItem> { new AudioDeviceItem { Id = "", Name = GetString("TxtNone") } };
                 if (enumerator.HasDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia))
-                    inList.Insert(1, new() { Id = "Default", Name = $"{GetString("TxtDefault")} ({enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia).FriendlyName})" });
+                    inList.Insert(1, new AudioDeviceItem { Id = "Default", Name = $"{GetString("TxtDefault")} ({enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Multimedia).FriendlyName})" });
                 inList.AddRange(inDevices.Select(d => new AudioDeviceItem { Id = d.ID, Name = d.FriendlyName }));
                 if (AudioInputComboBox != null)
                 {
@@ -3785,7 +3593,6 @@ namespace ClipManager
             catch { }
         }
 
-        
         private void AudioOutputComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (AudioOutputComboBox.SelectedItem is AudioDeviceItem item)
@@ -3794,12 +3601,11 @@ namespace ClipManager
             }
         }
 
-        
         private async void LoadCameraDevices()
         {
             try
             {
-                var outList = new List<CameraDeviceItem> { new() { Id = "", Name = GetString("TxtNone") } };
+                var outList = new List<CameraDeviceItem> { new CameraDeviceItem { Id = "", Name = GetString("TxtNone") } };
 
                 await DownloadFFmpegIfNeeded();
                 string ffmpegPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Clipless", "ffmpeg", "ffmpeg.exe");
@@ -3816,13 +3622,13 @@ namespace ClipManager
                     string output = await p.StandardError.ReadToEndAsync();
                     await p.WaitForExitAsync();
 
-                    bool inVideo = true; 
-                    foreach (var line in output.Split('\n'))
+                    bool inVideo = true; // some ffmpeg versions don't print "DirectShow video devices"
+                    foreach(var line in output.Split('\n'))
                     {
                         if (line.Contains("DirectShow video devices")) { inVideo = true; continue; }
                         if (line.Contains("DirectShow audio devices")) { inVideo = false; break; }
 
-                        if ((inVideo || line.Contains("(video)")) && line.Contains('"') && !line.Contains("Alternative name") && !line.Contains("(audio)"))
+                        if ((inVideo || line.Contains("(video)")) && line.Contains("\"") && !line.Contains("Alternative name") && !line.Contains("(audio)"))
                         {
                             var parts = line.Split('"');
                             if (parts.Length >= 3)
@@ -3833,8 +3639,7 @@ namespace ClipManager
                     }
                 }
 
-                _ = Dispatcher.BeginInvoke(() =>
-                {
+                Dispatcher.BeginInvoke(() => {
                     if (CameraComboBox != null)
                     {
                         CameraComboBox.ItemsSource = outList;
@@ -3852,7 +3657,6 @@ namespace ClipManager
             catch { }
         }
 
-        
         private void CameraComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (CameraComboBox.SelectedItem is CameraDeviceItem item)
@@ -3865,7 +3669,6 @@ namespace ClipManager
             }
         }
 
-        
         private void ChkCameraOverlay_Changed(object sender, RoutedEventArgs e)
         {
             if (ChkCameraOverlay != null)
@@ -3878,7 +3681,6 @@ namespace ClipManager
             }
         }
 
-        
         private void AudioInputComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (AudioInputComboBox.SelectedItem is AudioDeviceItem item)
@@ -3887,7 +3689,6 @@ namespace ClipManager
             }
         }
 
-        
         private void ResolutionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (ResolutionComboBox != null)
@@ -3896,24 +3697,25 @@ namespace ClipManager
             }
         }
 
-        
         private void ChkAutoStart_Changed(object sender, RoutedEventArgs e)
         {
             if (ChkAutoStart != null && _isLoaded)
             {
                 _autoStartEnabled = ChkAutoStart.IsChecked == true;
-                try
+                try 
                 {
-                    using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
-                    if (key != null)
+                    using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
                     {
-                        if (_autoStartEnabled)
+                        if (key != null)
                         {
-                            key.SetValue("Clipless", $"\"{Environment.ProcessPath}\" -autostart");
-                        }
-                        else
-                        {
-                            key.DeleteValue("Clipless", false);
+                            if (_autoStartEnabled)
+                            {
+                                key.SetValue("Clipless", $"\"{Environment.ProcessPath}\" -autostart");
+                            }
+                            else
+                            {
+                                key.DeleteValue("Clipless", false);
+                            }
                         }
                     }
                 }
@@ -3921,7 +3723,6 @@ namespace ClipManager
             }
         }
 
-        
         private void ChkAutoDelete_Changed(object sender, RoutedEventArgs e)
         {
             if (ChkAutoDelete != null)
@@ -3930,7 +3731,6 @@ namespace ClipManager
             }
         }
 
-        
         private void AutoDeleteSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (TxtAutoDeleteValue != null)
@@ -3940,7 +3740,6 @@ namespace ClipManager
             }
         }
 
-        
         private void ChkRecordEnabled_Changed(object sender, RoutedEventArgs e)
         {
             if (ChkRecordEnabled != null)
@@ -3964,8 +3763,7 @@ namespace ClipManager
             }
         }
 
-        
-        private void BufferMinutesSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        private async void BufferMinutesSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (TxtBufferMinutesValue != null)
             {
@@ -3974,14 +3772,12 @@ namespace ClipManager
             }
         }
 
-        
         private void RunAutoDelete()
         {
             if (!_autoDeleteEnabled || string.IsNullOrEmpty(_basePath) || !Directory.Exists(_basePath))
                 return;
 
-            Task.Run(() =>
-            {
+            Task.Run(() => {
                 try
                 {
                     DateTime cutoff = DateTime.Now.AddDays(-(_autoDeleteWeeks * 7));
@@ -4004,7 +3800,6 @@ namespace ClipManager
             });
         }
 
-        
         private string FormatSize(long bytes)
         {
             if (bytes >= 1073741824)
@@ -4016,13 +3811,10 @@ namespace ClipManager
             return $"{bytes} B";
         }
 
-        
         private void UpdateSizeStatusUI()
         {
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                if (TxtSizeStatus != null)
-                {
+            Dispatcher.BeginInvoke(new Action(() => {
+                if (TxtSizeStatus != null) {
                     string currentStr = GetString("TxtCurrentFolderSize") ?? "current folder clips size";
                     long currentSize = _currentClips?.Sum(c => c.ActualFileSize) ?? 0;
 
@@ -4034,12 +3826,12 @@ namespace ClipManager
 
     public class GameFolder
     {
-        public string Name { get; set; } = string.Empty;
-        public string FullPath { get; set; } = string.Empty;
+        public string Name { get; set; }
+        public string FullPath { get; set; }
     }
     public class VideoClip : INotifyPropertyChanged
     {
-        private string _name = string.Empty;
+        private string _name;
         public string Name
         {
             get => _name;
@@ -4053,7 +3845,7 @@ namespace ClipManager
             }
         }
 
-        private string _fullPath = string.Empty;
+        private string _fullPath;
         public string FullPath
         {
             get => _fullPath;
@@ -4066,8 +3858,8 @@ namespace ClipManager
                 }
             }
         }
-        public string CreationDate { get; set; } = string.Empty;
-        public string FileSize { get; set; } = string.Empty;
+        public string CreationDate { get; set; }
+        public string FileSize { get; set; }
         public long ActualFileSize { get; set; }
         public DateTime ActualCreationTime { get; set; }
         private bool _isFavorite;
@@ -4083,8 +3875,8 @@ namespace ClipManager
                 }
             }
         }
-        private ImageSource? _t;
-        public ImageSource? Thumbnail
+        private ImageSource _t;
+        public ImageSource Thumbnail
         {
             get => _t;
             set
@@ -4093,19 +3885,18 @@ namespace ClipManager
                 OnPropertyChanged();
             }
         }
-        public ImageSource? DefaultThumbnail { get; set; }
-        public ImageSource[]? HoverFrames { get; set; }
-        public ObservableCollection<ClipTag> Tags { get; set; } = [];
-        public event PropertyChangedEventHandler? PropertyChanged;
-        
-        protected void OnPropertyChanged([CallerMemberName] string? n = null) =>
+        public ImageSource DefaultThumbnail { get; set; }
+        public ImageSource[] HoverFrames { get; set; }
+        public ObservableCollection<ClipTag> Tags { get; set; } = new ObservableCollection<ClipTag>();
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged([CallerMemberName] string n = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
     }
     public class ClipTag : INotifyPropertyChanged
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
 
-        private string _name = string.Empty;
+        private string _name;
         public string Name
         {
             get => _name;
@@ -4119,7 +3910,7 @@ namespace ClipManager
             }
         }
 
-        private string _color = string.Empty;
+        private string _color;
         public string Color
         {
             get => _color;
@@ -4133,7 +3924,7 @@ namespace ClipManager
             }
         }
 
-        private string _iconPath = string.Empty;
+        private string _iconPath;
         public string IconPath
         {
             get => _iconPath;
@@ -4143,32 +3934,31 @@ namespace ClipManager
                 {
                     _iconPath = value;
                     OnPropertyChanged();
-                    OnPropertyChanged(nameof(HasIcon));
+                    OnPropertyChanged("HasIcon");
                 }
             }
         }
         public bool HasIcon => !string.IsNullOrEmpty(_iconPath);
 
-        public event PropertyChangedEventHandler? PropertyChanged;
-        
-        protected void OnPropertyChanged([CallerMemberName] string? n = null) =>
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnPropertyChanged([CallerMemberName] string n = null) =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
     }
     public class CameraDeviceItem
     {
-        public string Id { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
+        public string Id { get; set; }
+        public string Name { get; set; }
     }
 
     public class AudioDeviceItem
     {
-        public string Id { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
+        public string Id { get; set; }
+        public string Name { get; set; }
     }
 
     public class MonitorItem
     {
         public int Index { get; set; }
-        public string Name { get; set; } = string.Empty;
+        public string Name { get; set; }
     }
 }

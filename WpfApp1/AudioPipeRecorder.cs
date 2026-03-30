@@ -11,7 +11,7 @@ namespace ClipManager
     {
         public string PipeName { get; private set; }
         private WasapiCapture _capture;
-        private WasapiOut _silenceOut;
+        private WasapiOut? _silenceOut;
         private NamedPipeServerStream _pipe;
         private volatile bool _isRecording;
 
@@ -69,7 +69,7 @@ namespace ClipManager
             });
         }
 
-        private void OnDataAvailable(object sender, WaveInEventArgs e)
+        private void OnDataAvailable(object? sender, WaveInEventArgs e)
         {
             if (!_isRecording || !_pipe.IsConnected) return;
 
