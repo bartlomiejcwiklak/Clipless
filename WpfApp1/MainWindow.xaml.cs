@@ -2548,6 +2548,64 @@ namespace ClipManager
             TxtRenameInput.Focus();
             TxtRenameInput.SelectAll();
         }
+        private bool MovePathInFavorites(string oldPath, string newPath)
+        {
+            var existing = _favorites.FirstOrDefault(p => string.Equals(p, oldPath, StringComparison.OrdinalIgnoreCase));
+            if (existing == null) return false;
+
+            _favorites.Remove(existing);
+            _favorites.Add(newPath);
+            return true;
+        }
+
+        private bool MovePathInClipTags(string oldPath, string newPath)
+        {
+            var existing = _clipTagMap.Keys.FirstOrDefault(k => string.Equals(k, oldPath, StringComparison.OrdinalIgnoreCase));
+            if (existing == null) return false;
+
+            var tags = _clipTagMap[existing];
+            _clipTagMap.Remove(existing);
+            _clipTagMap[newPath] = tags;
+            return true;
+        }
+
+        private void MovePathInThumbnailCache(string oldPath, string newPath)
+        {
+            var existing = _thumbnailCache.Keys.FirstOrDefault(k => string.Equals(k, oldPath, StringComparison.OrdinalIgnoreCase));
+            if (existing == null) return;
+
+            var thumb = _thumbnailCache[existing];
+            _thumbnailCache.Remove(existing);
+            _thumbnailCache[newPath] = thumb;
+        }
+
+        private void UpdateClipReferencesAfterRename(string oldPath, string newPath)
+        {
+            string newName = Path.GetFileName(newPath);
+            bool isFav = _favorites.Contains(newPath);
+
+            foreach (var clip in _currentClips.Where(c => string.Equals(c.FullPath, oldPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                clip.FullPath = newPath;
+                clip.Name = newName;
+                clip.IsFavorite = isFav;
+            }
+
+            foreach (var clip in RecentClips.Where(c => string.Equals(c.FullPath, oldPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                clip.FullPath = newPath;
+                clip.Name = newName;
+                clip.IsFavorite = isFav;
+            }
+
+            if (_currentClip != null && string.Equals(_currentClip.FullPath, oldPath, StringComparison.OrdinalIgnoreCase))
+            {
+                _currentClip.FullPath = newPath;
+                _currentClip.Name = newName;
+                _currentClip.IsFavorite = isFav;
+            }
+        }
+
         private void BtnSaveRename_Click(object sender, RoutedEventArgs e)
         {
             if (_clipRen != null && !string.IsNullOrWhiteSpace(TxtRenameInput.Text))
@@ -2557,7 +2615,20 @@ namespace ClipManager
                 try
                 {
                     if (_clipRen.FullPath != np)
-                        File.Move(_clipRen.FullPath, np);
+                    {
+                        string oldPath = _clipRen.FullPath;
+                        File.Move(oldPath, np);
+
+                        bool updateFav = MovePathInFavorites(oldPath, np);
+                        bool updateTags = MovePathInClipTags(oldPath, np);
+                        MovePathInThumbnailCache(oldPath, np);
+
+                        if (updateFav) SaveFavorites();
+                        if (updateTags) SaveClipTags();
+
+                        UpdateClipReferencesAfterRename(oldPath, np);
+                        ApplySearchAndSort();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -3577,8 +3648,33 @@ namespace ClipManager
     }
     public class VideoClip : INotifyPropertyChanged
     {
-        public string Name { get; set; }
-        public string FullPath { get; set; }
+        private string _name;
+        public string Name
+        {
+            get => _name;
+            set
+            {
+                if (_name != value)
+                {
+                    _name = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _fullPath;
+        public string FullPath
+        {
+            get => _fullPath;
+            set
+            {
+                if (_fullPath != value)
+                {
+                    _fullPath = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
         public string CreationDate { get; set; }
         public string FileSize { get; set; }
         public long ActualFileSize { get; set; }
