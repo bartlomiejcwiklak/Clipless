@@ -105,11 +105,14 @@ namespace ClipManager
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
         private const int WH_KEYBOARD_LL = 13;
+        private const int WH_MOUSE_LL = 14;
         private const int WM_KEYDOWN = 0x0100;
         private const int WM_SYSKEYDOWN = 0x0104;
 
         private LowLevelKeyboardProc _hookProc;
         private IntPtr _hookID = IntPtr.Zero;
+        private LowLevelKeyboardProc _mouseHookProc;
+        private IntPtr _mouseHookID = IntPtr.Zero;
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
@@ -263,6 +266,81 @@ namespace ClipManager
             }
         }
 
+        private IntPtr SetMouseHook(LowLevelKeyboardProc proc)
+        {
+            using (var curProcess = System.Diagnostics.Process.GetCurrentProcess())
+            using (var curModule = curProcess.MainModule)
+            {
+                return SetWindowsHookEx(WH_MOUSE_LL, proc, GetModuleHandle(curModule.ModuleName), 0);
+            }
+        }
+
+        private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0)
+            {
+                if (wParam == (IntPtr)0x020B || wParam == (IntPtr)0x020C) // WM_XBUTTONDOWN or WM_XBUTTONUP
+                {
+                    IntPtr hwnd = GetForegroundWindow();
+                    if (hwnd != IntPtr.Zero)
+                    {
+                        GetWindowThreadProcessId(hwnd, out uint pid);
+                        if (pid == System.Diagnostics.Process.GetCurrentProcess().Id)
+                        {
+                            int mouseData = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 8);
+                            int highWord = (mouseData >> 16) & 0xFFFF;
+
+                            if (wParam == (IntPtr)0x020B) // WM_XBUTTONDOWN
+                            {
+                                if (highWord == 1) // XBUTTON1
+                                {
+                                    Dispatcher.BeginInvoke(new Action(() => NavigateBack()));
+                                    return (IntPtr)1; // suppress system event
+                                }
+                                else if (highWord == 2) // XBUTTON2
+                                {
+                                    Dispatcher.BeginInvoke(new Action(() => NavigateForward()));
+                                    return (IntPtr)1; // suppress system event
+                                }
+                            }
+                            else if (wParam == (IntPtr)0x020C) // WM_XBUTTONUP
+                            {
+                                if (highWord == 1 || highWord == 2)
+                                    return (IntPtr)1; // suppress release event
+                            }
+                        }
+                    }
+                }
+                else if (wParam == (IntPtr)0x0201) // WM_LBUTTONDOWN
+                {
+                    IntPtr hwnd = GetForegroundWindow();
+                    if (hwnd != IntPtr.Zero)
+                    {
+                        GetWindowThreadProcessId(hwnd, out uint pid);
+                        if (pid == System.Diagnostics.Process.GetCurrentProcess().Id)
+                        {
+                            int x = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 0);
+                            int y = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 4);
+
+                            Dispatcher.BeginInvoke(new Action(() => {
+                                try {
+                                    if (PlayerOverlay != null && PlayerOverlay.Visibility == Visibility.Visible && _mediaPlayer != null)
+                                    {
+                                        var pt = VideoPlayer.PointFromScreen(new System.Windows.Point(x, y));
+                                        if (pt.X >= 0 && pt.Y >= 0 && pt.X <= VideoPlayer.ActualWidth && pt.Y <= VideoPlayer.ActualHeight)
+                                        {
+                                            PlayPauseButton_Click(null, null);
+                                        }
+                                    }
+                                } catch {}
+                            }));
+                        }
+                    }
+                }
+            }
+            return CallNextHookEx(_mouseHookID, nCode, wParam, lParam);
+        }
+
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
             if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
@@ -295,6 +373,9 @@ namespace ClipManager
             base.OnSourceInitialized(e);
             _hookProc = HookCallback;
             _hookID = SetHook(_hookProc);
+
+            _mouseHookProc = MouseHookCallback;
+            _mouseHookID = SetMouseHook(_mouseHookProc);
         }
 
         protected override void OnClosing(CancelEventArgs e)
@@ -303,7 +384,6 @@ namespace ClipManager
             {
                 e.Cancel = true;
                 this.Visibility = Visibility.Hidden;
-                _notifyIcon.ShowBalloonTip(2000, "Clipless", string.Format(GetString("TxtTrayRunning"), TxtSaveHotkey?.Text ?? "Ctrl+Shift+S"), System.Windows.Forms.ToolTipIcon.Info);
             }
             else
             {
@@ -314,6 +394,7 @@ namespace ClipManager
         protected override void OnClosed(EventArgs e)
         {
             UnhookWindowsHookEx(_hookID);
+            if (_mouseHookID != IntPtr.Zero) UnhookWindowsHookEx(_mouseHookID);
             StopBackgroundRecorder();
             if (_notifyIcon != null)
             {
@@ -605,9 +686,6 @@ namespace ClipManager
             string clipName = $"{gameName}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4";
             string outPath = Path.Combine(outDir, clipName);
 
-            if (_notifyIcon != null)
-                _notifyIcon.ShowBalloonTip(2000, "Clipless", GetString("TxtStatusSaving"), System.Windows.Forms.ToolTipIcon.Info);
-
             SetStatus(GetString("TxtStatusSaving"));
 
             Task.Run(() => {
@@ -638,8 +716,6 @@ namespace ClipManager
                         {
                             string savedText = GetString("TxtStatusClipSaved");
                             SetStatus($"{savedText} {clipName}");
-                            if (_notifyIcon != null)
-                                _notifyIcon.ShowBalloonTip(3000, "Clipless", $"{GetString("TxtTraySavedTo")} {gameName}\n{clipName}", System.Windows.Forms.ToolTipIcon.Info);
 
                             ScanForGameFolders();
                             var targetFolder = Folders.FirstOrDefault(f => string.Equals(f.FullPath, outDir, StringComparison.OrdinalIgnoreCase));
@@ -1331,6 +1407,7 @@ namespace ClipManager
         {
             if (SpecialTagsListBox.SelectedItem is ClipTag tag)
             {
+                RegisterNavigation(tag);
                 if (PlayerOverlay.Visibility == Visibility.Visible)
                 {
                     ClosePlayer_Click(null, null);
@@ -1365,6 +1442,7 @@ namespace ClipManager
         {
             if (TagsListBox.SelectedItem is ClipTag tag)
             {
+                RegisterNavigation(tag);
                 if (PlayerOverlay.Visibility == Visibility.Visible)
                 {
                     ClosePlayer_Click(null, null);
@@ -1431,6 +1509,7 @@ namespace ClipManager
         {
             if (GameFolderList.SelectedItem is GameFolder folder)
             {
+                RegisterNavigation(folder);
                 if (PlayerOverlay.Visibility == Visibility.Visible)
                 {
                     ClosePlayer_Click(null, null);
@@ -1594,6 +1673,87 @@ namespace ClipManager
                     } catch {}
                 }
             }));
+        }
+
+        private object _currentNavState;
+        private Stack<object> _backHistory = new Stack<object>();
+        private Stack<object> _forwardHistory = new Stack<object>();
+        private bool _isNavigating = false;
+
+        private void RegisterNavigation(object item)
+        {
+            if (_isNavigating || item == null) return;
+            if (_currentNavState != null && _currentNavState != item)
+            {
+                _backHistory.Push(_currentNavState);
+                _forwardHistory.Clear();
+            }
+            _currentNavState = item;
+        }
+
+        private void NavigateBack()
+        {
+            // Close overlays if they are currently active
+            if (SettingsOverlay != null && SettingsOverlay.Visibility == Visibility.Visible) { BtnCloseSettings_Click(null, null); return; }
+            if (TagInputOverlay != null && TagInputOverlay.Visibility == Visibility.Visible) { BtnCancelTagInput_Click(null, null); return; }
+            if (FolderInputOverlay != null && FolderInputOverlay.Visibility == Visibility.Visible) { BtnCancelFolderInput_Click(null, null); return; }
+            if (RenameOverlay != null && RenameOverlay.Visibility == Visibility.Visible) { BtnCancelRename_Click(null, null); return; }
+            if (DeleteConfirmOverlay != null && DeleteConfirmOverlay.Visibility == Visibility.Visible) { BtnCancelDelete_Click(null, null); return; }
+            if (SaveConfirmOverlay != null && SaveConfirmOverlay.Visibility == Visibility.Visible) { BtnCancelOverlay_Click(null, null); return; }
+
+            if (PlayerOverlay != null && PlayerOverlay.Visibility == Visibility.Visible)
+            {
+                ClosePlayer_Click(null, null);
+                return;
+            }
+
+            if (_backHistory.Count > 0)
+            {
+                var target = _backHistory.Pop();
+                if (_currentNavState != null) _forwardHistory.Push(_currentNavState);
+                _currentNavState = target;
+                RestoreNavigationState(target);
+            }
+        }
+
+        private void NavigateForward()
+        {
+            if (PlayerOverlay.Visibility == Visibility.Visible)
+                return;
+
+            if (_forwardHistory.Count > 0)
+            {
+                var target = _forwardHistory.Pop();
+                if (_currentNavState != null) _backHistory.Push(_currentNavState);
+                _currentNavState = target;
+                RestoreNavigationState(target);
+            }
+        }
+
+        private void RestoreNavigationState(object state)
+        {
+            _isNavigating = true;
+            GameFolderList.SelectedItem = null;
+            TagsListBox.SelectedItem = null;
+            SpecialTagsListBox.SelectedItem = null;
+
+            if (state is GameFolder f)
+            {
+                var target = Folders.FirstOrDefault(x => x.FullPath == f.FullPath) ?? f;
+                GameFolderList.SelectedItem = target;
+            }
+            else if (state is ClipTag t)
+            {
+                if (t.Id == "HOME_SPECIAL_TAG" || t.Id == "FAVORITES_SPECIAL_TAG")
+                {
+                    SpecialTagsListBox.SelectedItem = SpecialTagsList.FirstOrDefault(x => x.Id == t.Id) ?? t;
+                }
+                else
+                {
+                    TagsListBox.SelectedItem = TagsList.FirstOrDefault(x => x.Id == t.Id) ?? t;
+                }
+            }
+            _isNavigating = false;
         }
 
         private void MainWindow_PreviewKeyDown(
