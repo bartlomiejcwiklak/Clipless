@@ -95,15 +95,15 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="Clipless" Icon="icon.ico" />
+        <ui:TitleBar x:Name="MainTitleBar" Grid.Row="0" Title="Clipless" Icon="icon.ico" />
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition x:Name="SidebarColumn" Width="250"/>
+                <ColumnDefinition x:Name="ContentColumn" Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Background="#1A1A1A" Opacity="0.8" Padding="10">
+            <Border x:Name="SidebarPane" Grid.Column="0" Background="#1A1A1A" Opacity="0.8" Padding="10">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
@@ -324,16 +324,16 @@
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <ui:Button Grid.Row="0" Content="{DynamicResource TxtBackToClips}" Appearance="Secondary" Margin="10,0,0,10" HorizontalAlignment="Left" Click="ClosePlayer_Click" />
-                    <Border Grid.Row="1" ClipToBounds="True" Background="Black" Margin="10,0,10,10">
+                    <ui:Button x:Name="BtnBackToClips" Grid.Row="0" Content="{DynamicResource TxtBackToClips}" Appearance="Secondary" Margin="10,0,0,10" HorizontalAlignment="Left" Click="ClosePlayer_Click" />
+                    <Border x:Name="VideoViewportBorder" Grid.Row="1" ClipToBounds="True" Background="Black" Margin="10,0,10,10">
                         <Grid Background="Black">
-                            <vlc:VideoView x:Name="VideoPlayer" Background="Black" />
+                            <vlc:VideoView x:Name="VideoPlayer" Background="Black" MouseLeftButtonDown="VideoPlayer_MouseLeftButtonDown" />
                             <Popup x:Name="PlayPausePopup" PlacementTarget="{Binding ElementName=VideoPlayer}" Placement="Center" AllowsTransparency="True" IsOpen="False">
                                 <Image x:Name="PlayPauseOverlayIcon" Width="80" Height="80" Stretch="Uniform" Opacity="0" IsHitTestVisible="False" />
                             </Popup>
                         </Grid>
                     </Border>
-                    <Grid Grid.Row="2" Margin="10,0,10,10">
+                    <Grid x:Name="PlayerControlsBar" Grid.Row="2" Margin="10,0,10,10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
@@ -657,7 +657,7 @@
             </Border>
         </Grid>
 
-        <Border Grid.Row="2" Background="#1A1A1A" BorderBrush="#333333" BorderThickness="0,1,0,0" Padding="10,5">
+        <Border x:Name="StatusBarBorder" Grid.Row="2" Background="#1A1A1A" BorderBrush="#333333" BorderThickness="0,1,0,0" Padding="10,5">
             <Grid>
                 <TextBlock x:Name="TxtSizeStatus" Foreground="#AAAAAA" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Center"/>
                 <TextBlock x:Name="TxtStatusBar" Text="{DynamicResource TxtStatusReady}" Foreground="#AAAAAA" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center"/>

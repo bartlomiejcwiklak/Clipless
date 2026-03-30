@@ -86,6 +86,26 @@ namespace ClipManager
         private bool _isLoaded = false;
         private bool _wasPlayingBeforeScrub = false;
         private DateTime _lastScrubTime = DateTime.MinValue;
+        private bool _isVideoFullscreen = false;
+        private WindowState _windowStateBeforeFullscreen;
+        private WindowStyle _windowStyleBeforeFullscreen;
+        private ResizeMode _resizeModeBeforeFullscreen;
+        private bool _topmostBeforeFullscreen;
+        private double _leftBeforeFullscreen;
+        private double _topBeforeFullscreen;
+        private double _widthBeforeFullscreen;
+        private double _heightBeforeFullscreen;
+        private Thickness _videoViewportMarginBeforeFullscreen;
+        private Visibility _backButtonVisibilityBeforeFullscreen;
+        private Visibility _controlsVisibilityBeforeFullscreen;
+        private Visibility _titleBarVisibilityBeforeFullscreen;
+        private Visibility _sidebarVisibilityBeforeFullscreen;
+        private Visibility _statusBarVisibilityBeforeFullscreen;
+        private Visibility _topBarVisibilityBeforeFullscreen;
+        private GridLength _sidebarColumnWidthBeforeFullscreen;
+        private GridLength _contentColumnWidthBeforeFullscreen;
+        private DateTime _lastVideoClickAt = DateTime.MinValue;
+        private System.Windows.Point _lastVideoClickPos;
 
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto, SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
@@ -327,6 +347,36 @@ namespace ClipManager
                         }
                     }
                 }
+                else if (wParam == (IntPtr)0x0203) // WM_LBUTTONDBLCLK
+                {
+                    IntPtr hwnd = GetForegroundWindow();
+                    if (hwnd != IntPtr.Zero)
+                    {
+                        GetWindowThreadProcessId(hwnd, out uint pid);
+                        if (pid == System.Diagnostics.Process.GetCurrentProcess().Id)
+                        {
+                            int x = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 0);
+                            int y = System.Runtime.InteropServices.Marshal.ReadInt32(lParam, 4);
+
+                            Dispatcher.BeginInvoke(new Action(() => {
+                                try
+                                {
+                                    if (PlayerOverlay != null && PlayerOverlay.Visibility == Visibility.Visible)
+                                    {
+                                        var pt = VideoPlayer.PointFromScreen(new System.Windows.Point(x, y));
+                                        if (pt.X >= 0 && pt.Y >= 0 && pt.X <= VideoPlayer.ActualWidth && pt.Y <= VideoPlayer.ActualHeight)
+                                        {
+                                            if (_isVideoFullscreen) ExitVideoFullscreen();
+                                            else EnterVideoFullscreen();
+                                        }
+                                    }
+                                }
+                                catch { }
+                            }));
+                            return (IntPtr)1;
+                        }
+                    }
+                }
                 else if (wParam == (IntPtr)0x0201) // WM_LBUTTONDOWN
                 {
                     IntPtr hwnd = GetForegroundWindow();
@@ -345,6 +395,21 @@ namespace ClipManager
                                         var pt = VideoPlayer.PointFromScreen(new System.Windows.Point(x, y));
                                         if (pt.X >= 0 && pt.Y >= 0 && pt.X <= VideoPlayer.ActualWidth && pt.Y <= VideoPlayer.ActualHeight)
                                         {
+                                            var now = DateTime.Now;
+                                            bool isDoubleClick = (now - _lastVideoClickAt).TotalMilliseconds <= System.Windows.Forms.SystemInformation.DoubleClickTime
+                                                && Math.Abs(pt.X - _lastVideoClickPos.X) <= System.Windows.Forms.SystemInformation.DoubleClickSize.Width
+                                                && Math.Abs(pt.Y - _lastVideoClickPos.Y) <= System.Windows.Forms.SystemInformation.DoubleClickSize.Height;
+
+                                            _lastVideoClickAt = now;
+                                            _lastVideoClickPos = pt;
+
+                                            if (isDoubleClick)
+                                            {
+                                                if (_isVideoFullscreen) ExitVideoFullscreen();
+                                                else EnterVideoFullscreen();
+                                                return;
+                                            }
+
                                             bool willPlay = false;
                                             if (_mediaPlayer.State == LibVLCSharp.Shared.VLCState.Ended || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Stopped || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Error)
                                             {
@@ -410,6 +475,9 @@ namespace ClipManager
             if (_notifyIcon != null && !_actualClose)
             {
                 e.Cancel = true;
+                if (_isVideoFullscreen)
+                    ExitVideoFullscreen();
+                PausePlayback();
                 this.Visibility = Visibility.Hidden;
             }
             else
@@ -1880,6 +1948,13 @@ namespace ClipManager
         private void MainWindow_PreviewKeyDown(
             object sender, System.Windows.Input.KeyEventArgs e)
         {
+            if (_isVideoFullscreen && e.Key == System.Windows.Input.Key.Escape)
+            {
+                ExitVideoFullscreen();
+                e.Handled = true;
+                return;
+            }
+
             if (PlayerOverlay.Visibility != Visibility.Visible)
             {
                 if (e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase) return;
@@ -2131,7 +2206,108 @@ namespace ClipManager
             }
         }
 
-        private void ClosePlayer_Click(object sender, RoutedEventArgs e)
+        private void VideoPlayer_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2 && PlayerOverlay.Visibility == Visibility.Visible)
+            {
+                if (_isVideoFullscreen) ExitVideoFullscreen();
+                else EnterVideoFullscreen();
+                e.Handled = true;
+            }
+        }
+
+        private void EnterVideoFullscreen()
+        {
+            if (_isVideoFullscreen) return;
+
+            _windowStateBeforeFullscreen = WindowState;
+            _windowStyleBeforeFullscreen = WindowStyle;
+            _resizeModeBeforeFullscreen = ResizeMode;
+            _topmostBeforeFullscreen = Topmost;
+            _leftBeforeFullscreen = Left;
+            _topBeforeFullscreen = Top;
+            _widthBeforeFullscreen = Width;
+            _heightBeforeFullscreen = Height;
+            _videoViewportMarginBeforeFullscreen = VideoViewportBorder.Margin;
+            _backButtonVisibilityBeforeFullscreen = BtnBackToClips.Visibility;
+            _controlsVisibilityBeforeFullscreen = PlayerControlsBar.Visibility;
+            _titleBarVisibilityBeforeFullscreen = MainTitleBar.Visibility;
+            _sidebarVisibilityBeforeFullscreen = SidebarPane.Visibility;
+            _statusBarVisibilityBeforeFullscreen = StatusBarBorder.Visibility;
+            _topBarVisibilityBeforeFullscreen = TopBarGrid.Visibility;
+            _sidebarColumnWidthBeforeFullscreen = SidebarColumn.Width;
+            _contentColumnWidthBeforeFullscreen = ContentColumn.Width;
+
+            var centerOnScreen = VideoPlayer.PointToScreen(new System.Windows.Point(VideoPlayer.ActualWidth / 2, VideoPlayer.ActualHeight / 2));
+            var targetScreen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)centerOnScreen.X, (int)centerOnScreen.Y));
+            var bounds = targetScreen.Bounds;
+
+            WindowState = WindowState.Normal;
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
+            Topmost = true;
+            Left = bounds.Left;
+            Top = bounds.Top;
+            Width = bounds.Width;
+            Height = bounds.Height;
+
+            Grid.SetRow(PlayerOverlay, 0);
+            Grid.SetRowSpan(PlayerOverlay, 3);
+            Grid.SetRow(VideoViewportBorder, 0);
+            Grid.SetRowSpan(VideoViewportBorder, 3);
+            VideoViewportBorder.Margin = new Thickness(0);
+            BtnBackToClips.Visibility = Visibility.Collapsed;
+            PlayerControlsBar.Visibility = Visibility.Collapsed;
+            MainTitleBar.Visibility = Visibility.Collapsed;
+            SidebarPane.Visibility = Visibility.Collapsed;
+            StatusBarBorder.Visibility = Visibility.Collapsed;
+            TopBarGrid.Visibility = Visibility.Collapsed;
+            SidebarColumn.Width = new GridLength(0);
+            ContentColumn.Width = new GridLength(1, GridUnitType.Star);
+            _isVideoFullscreen = true;
+        }
+
+        private void ExitVideoFullscreen()
+        {
+            if (!_isVideoFullscreen) return;
+
+            WindowState = WindowState.Normal;
+            WindowStyle = _windowStyleBeforeFullscreen;
+            ResizeMode = _resizeModeBeforeFullscreen;
+            Topmost = _topmostBeforeFullscreen;
+            Left = _leftBeforeFullscreen;
+            Top = _topBeforeFullscreen;
+            Width = _widthBeforeFullscreen;
+            Height = _heightBeforeFullscreen;
+
+            Grid.SetRow(PlayerOverlay, 1);
+            Grid.SetRowSpan(PlayerOverlay, 1);
+            Grid.SetRow(VideoViewportBorder, 1);
+            Grid.SetRowSpan(VideoViewportBorder, 1);
+            VideoViewportBorder.Margin = _videoViewportMarginBeforeFullscreen;
+            BtnBackToClips.Visibility = _backButtonVisibilityBeforeFullscreen;
+            PlayerControlsBar.Visibility = _controlsVisibilityBeforeFullscreen;
+            MainTitleBar.Visibility = _titleBarVisibilityBeforeFullscreen;
+            SidebarPane.Visibility = _sidebarVisibilityBeforeFullscreen;
+            StatusBarBorder.Visibility = _statusBarVisibilityBeforeFullscreen;
+            TopBarGrid.Visibility = _topBarVisibilityBeforeFullscreen;
+            SidebarColumn.Width = _sidebarColumnWidthBeforeFullscreen;
+            ContentColumn.Width = _contentColumnWidthBeforeFullscreen;
+
+            WindowState = _windowStateBeforeFullscreen;
+            _isVideoFullscreen = false;
+        }
+
+        private void PausePlayback()
+        {
+            if (_mediaPlayer != null && _mediaPlayer.IsPlaying)
+            {
+                _mediaPlayer.Pause();
+                UpdatePlayPauseIcon(false);
+            }
+        }
+
+        private void StopPlayback()
         {
             if (_mediaPlayer != null)
             {
@@ -2142,6 +2318,13 @@ namespace ClipManager
                     _mediaPlayer.Media = null;
                 }
             }
+        }
+
+        private void ClosePlayer_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isVideoFullscreen)
+                ExitVideoFullscreen();
+            StopPlayback();
             if (PlayerOverlay != null) PlayerOverlay.Visibility = Visibility.Collapsed;
             if (VideoPlayer != null) VideoPlayer.Visibility = Visibility.Hidden;
         }
