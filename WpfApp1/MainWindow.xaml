@@ -227,7 +227,7 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="5,0,0,10">
+                <Grid Grid.Row="0" x:Name="TopBarGrid" Margin="5,0,0,10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -318,8 +318,13 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <ui:Button Grid.Row="0" Content="{DynamicResource TxtBackToClips}" Appearance="Secondary" Margin="10,0,0,10" HorizontalAlignment="Left" Click="ClosePlayer_Click" />
-                    <Border Grid.Row="1" CornerRadius="8" ClipToBounds="True" Background="Black" Margin="10,0,10,10">
-                        <vlc:VideoView x:Name="VideoPlayer" />
+                    <Border Grid.Row="1" ClipToBounds="True" Background="Black" Margin="10,0,10,10">
+                        <Grid Background="Black">
+                            <vlc:VideoView x:Name="VideoPlayer" Background="Black" />
+                            <Popup x:Name="PlayPausePopup" PlacementTarget="{Binding ElementName=VideoPlayer}" Placement="Center" AllowsTransparency="True" IsOpen="False">
+                                <Image x:Name="PlayPauseOverlayIcon" Width="80" Height="80" Stretch="Uniform" Opacity="0" IsHitTestVisible="False" />
+                            </Popup>
+                        </Grid>
                     </Border>
                     <Grid Grid.Row="2" Margin="10,0,10,10">
                         <Grid.ColumnDefinitions>
@@ -332,10 +337,10 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,10,0">
                             <Button x:Name="PlayPauseButton" Width="40" Height="40" Margin="5,0,0,0" Background="Transparent" BorderThickness="0" Click="PlayPauseButton_Click" Padding="4">
-                                <Image Source="/Images/play.png" Stretch="Uniform"/>
+                                <Image Source="/Images/play.png" Stretch="Uniform" Width="22" Height="22"/>
                             </Button>
                             <Button x:Name="PlayFromSelectionButton" ToolTip="Play from selection" Width="40" Height="40" Margin="0,0,0,0" Background="Transparent" BorderThickness="0" Click="PlayFromSelectionButton_Click" Padding="4">
-                                <Image Source="/Images/play_selection.png" Stretch="Uniform"/>
+                                <Image Source="/Images/play_selection.png" Stretch="Uniform" Width="22" Height="22"/>
                             </Button>
                         </StackPanel>
                         <TextBlock x:Name="TimeDisplay" Grid.Column="1" Text="00:00.00 / 00:00" Foreground="White" VerticalAlignment="Center" Margin="0,0,15,0" Width="110"/>

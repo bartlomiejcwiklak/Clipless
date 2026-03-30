@@ -341,7 +341,18 @@ namespace ClipManager
                                         var pt = VideoPlayer.PointFromScreen(new System.Windows.Point(x, y));
                                         if (pt.X >= 0 && pt.Y >= 0 && pt.X <= VideoPlayer.ActualWidth && pt.Y <= VideoPlayer.ActualHeight)
                                         {
+                                            bool willPlay = false;
+                                            if (_mediaPlayer.State == LibVLCSharp.Shared.VLCState.Ended || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Stopped || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Error)
+                                            {
+                                                willPlay = true;
+                                            }
+                                            else
+                                            {
+                                                willPlay = !_mediaPlayer.IsPlaying;
+                                            }
+
                                             PlayPauseButton_Click(null, null);
+                                            ShowPlayPauseAnimation(willPlay);
                                         }
                                     }
                                 } catch {}
@@ -1445,8 +1456,11 @@ namespace ClipManager
                     RefreshRecentClips();
                     TxtNoFolderMessage.Visibility = Visibility.Visible;
                     if (ClipList != null) ClipList.Visibility = Visibility.Collapsed;
+                    if (TopBarGrid != null) TopBarGrid.Visibility = Visibility.Collapsed;
                     return;
                 }
+
+                if (TopBarGrid != null) TopBarGrid.Visibility = Visibility.Visible;
 
                 if (tag.Id == "FAVORITES_SPECIAL_TAG")
                 {
@@ -1472,6 +1486,7 @@ namespace ClipManager
                 if (TxtRecentClipsTitle != null) TxtRecentClipsTitle.Visibility = Visibility.Collapsed;
                 if (RecentClipsList != null) RecentClipsList.Visibility = Visibility.Collapsed;
                 if (ClipList != null) ClipList.Visibility = Visibility.Visible;
+                if (TopBarGrid != null) TopBarGrid.Visibility = Visibility.Visible;
                 _folderWatcher.EnableRaisingEvents = false;
 
                 Clips.Clear();
@@ -1541,6 +1556,7 @@ namespace ClipManager
                 if (Directory.Exists(folder.FullPath))
                 {
                     if (ClipList != null) ClipList.Visibility = Visibility.Visible;
+                    if (TopBarGrid != null) TopBarGrid.Visibility = Visibility.Visible;
                     _folderWatcher.Path = folder.FullPath;
                     _folderWatcher.EnableRaisingEvents = true;
                     RefreshCurrentFolder(folder.FullPath);
@@ -1548,6 +1564,7 @@ namespace ClipManager
                 else
                 {
                     if (ClipList != null) ClipList.Visibility = Visibility.Collapsed;
+                    if (TopBarGrid != null) TopBarGrid.Visibility = Visibility.Collapsed;
                     TxtNoFolderMessage.Visibility = Visibility.Visible;
                     if (TxtRecentClipsTitle != null) TxtRecentClipsTitle.Visibility = Visibility.Visible;
                     if (RecentClipsList != null) RecentClipsList.Visibility = Visibility.Visible;
@@ -1688,6 +1705,36 @@ namespace ClipManager
                 {
                     try {
                         img.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(isPlaying ? "pack://application:,,,/Images/pause.png" : "pack://application:,,,/Images/play.png"));
+                    } catch {}
+                }
+            }));
+        }
+
+        private void ShowPlayPauseAnimation(bool willPlay)
+        {
+            Dispatcher.BeginInvoke(new Action(() => {
+                if (PlayPauseOverlayIcon != null)
+                {
+                    try {
+                        if (PlayPausePopup != null)
+                        {
+                            PlayPausePopup.IsOpen = true;
+                        }
+
+                        PlayPauseOverlayIcon.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(willPlay ? "pack://application:,,,/Images/play.png" : "pack://application:,,,/Images/pause.png"));
+                        var anim = new System.Windows.Media.Animation.DoubleAnimation
+                        {
+                            From = 0.8,
+                            To = 0.0,
+                            Duration = new Duration(TimeSpan.FromMilliseconds(500)),
+                            FillBehavior = System.Windows.Media.Animation.FillBehavior.Stop
+                        };
+                        anim.Completed += (s, e) => {
+                            PlayPauseOverlayIcon.Opacity = 0;
+                            if (PlayPausePopup != null) PlayPausePopup.IsOpen = false;
+                        };
+                        PlayPauseOverlayIcon.BeginAnimation(UIElement.OpacityProperty, anim);
+                        PlayPauseOverlayIcon.Opacity = 0.8;
                     } catch {}
                 }
             }));
@@ -1985,6 +2032,24 @@ namespace ClipManager
                 VideoPlayer.MediaPlayer = null;
                 VideoPlayer.MediaPlayer = _mediaPlayer;
                 UpdatePlayPauseIcon(true);
+
+                EventHandler<EventArgs> playingHandler = null;
+                playingHandler = async (s, ev) =>
+                {
+                    if (_mediaPlayer != null)
+                        _mediaPlayer.Playing -= playingHandler;
+
+                    await Task.Delay(50);
+                    Dispatcher.BeginInvoke(new Action(() => {
+                        if (VideoPlayer.ActualWidth > 0) {
+                            VideoPlayer.Width = VideoPlayer.ActualWidth + 1;
+                            VideoPlayer.UpdateLayout();
+                            VideoPlayer.Width = double.NaN;
+                        }
+                    }));
+                };
+                _mediaPlayer.Playing += playingHandler;
+
                 _mediaPlayer.Play(new Media(_libVLC, new Uri(clip.FullPath)));
                 if (VolumeSlider != null) _mediaPlayer.Volume = (int)VolumeSlider.Value;
             }
