@@ -113,6 +113,8 @@
     <system:String x:Key="TxtTrayQuit">Wyjdź</system:String>
     <system:String x:Key="TxtTrayRunning">Działa w tle. Naciśnij {0} aby zapisać klip.</system:String>
     <system:String x:Key="TxtTraySavedTo">Zapisano do</system:String>
+    <system:String x:Key="TxtAudioDeviceNoneWarning">Nagrywanie w tle jest włączone, ale co najmniej jedno urządzenie audio ustawiono na Brak. Klipy mogą zapisywać się bez pełnego dźwięku.</system:String>
+    <system:String x:Key="TxtDismiss">Zamknij</system:String>
 
     <system:String x:Key="TxtAllClips">Klipy</system:String>
     <system:String x:Key="TxtTotalClipsSize">Całkowity rozmiar klipów</system:String>

@@ -224,10 +224,18 @@
             <Grid Grid.Column="1" Background="#111111">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" x:Name="TopBarGrid" Margin="10,10,10,10">
+                <Border x:Name="AudioDevicesWarningStrip" Grid.Row="0" Margin="10,10,10,0" Background="#F5C542" CornerRadius="4" Padding="10,8" MinHeight="36" Visibility="Collapsed">
+                    <DockPanel LastChildFill="True">
+                        <Button x:Name="BtnDismissAudioWarning" DockPanel.Dock="Right" Margin="10,0,0,0" MinWidth="70" MinHeight="26" Padding="8,2" BorderThickness="0" Background="#00000000" Foreground="#3A2A00" FontWeight="SemiBold" VerticalAlignment="Center" Click="BtnDismissAudioWarning_Click" Content="{DynamicResource TxtDismiss}"/>
+                        <TextBlock Text="{DynamicResource TxtAudioDeviceNoneWarning}" Foreground="#3A2A00" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                    </DockPanel>
+                </Border>
+
+                <Grid Grid.Row="1" x:Name="TopBarGrid" Margin="10,10,10,10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
@@ -250,7 +258,7 @@
                     </StackPanel>
                 </Grid>
 
-                <StackPanel Grid.Row="1" x:Name="TxtNoFolderMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Visible">
+                <StackPanel Grid.Row="2" x:Name="TxtNoFolderMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Visible">
                     <Image Source="logo.png" MaxWidth="300" MaxHeight="300" Margin="0,0,0,15" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
                     <TextBlock Text="{DynamicResource TxtVersionInfo}" Foreground="Gray" FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,5"/>
                     <TextBlock Text="{DynamicResource TxtNoFolderSelected}" Foreground="Gray" FontSize="16" HorizontalAlignment="Center" Margin="0,0,0,20"/>
@@ -284,7 +292,7 @@
                         </ListBox.ItemsPanel>
                     </ListBox>
                 </StackPanel>
-                <ListBox Grid.Row="1" x:Name="ClipList" Background="Transparent" BorderThickness="0" Margin="0" SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="ClipList_MouseDoubleClick" ItemTemplate="{StaticResource ClipItemTemplate}"
+                <ListBox Grid.Row="2" x:Name="ClipList" Background="Transparent" BorderThickness="0" Margin="0" SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="ClipList_MouseDoubleClick" ItemTemplate="{StaticResource ClipItemTemplate}"
                          PreviewMouseLeftButtonDown="ClipList_PreviewMouseLeftButtonDown" MouseMove="ClipList_MouseMove" MouseLeftButtonUp="ClipList_MouseLeftButtonUp">
                     <ListBox.ContextMenu>
                         <ContextMenu>
@@ -314,11 +322,11 @@
                     </ListBox.ItemsPanel>
                 </ListBox>
 
-                <Canvas Grid.Row="1" x:Name="SelectionCanvas" IsHitTestVisible="False" Background="Transparent" ClipToBounds="True">
+                <Canvas Grid.Row="2" x:Name="SelectionCanvas" IsHitTestVisible="False" Background="Transparent" ClipToBounds="True">
                     <Border x:Name="SelectionRectangle" Visibility="Collapsed" Background="#400078D7" BorderBrush="#0078D7" BorderThickness="1" CornerRadius="2" />
                 </Canvas>
 
-                <Grid Grid.Row="1" x:Name="PlayerOverlay" Visibility="Collapsed" Background="#111111">
+                <Grid Grid.Row="2" x:Name="PlayerOverlay" Visibility="Collapsed" Background="#111111">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -356,7 +364,15 @@
                         </StackPanel>
                         <Grid Grid.Column="3" VerticalAlignment="Center" Margin="0,0,15,0">
                             <Image x:Name="WaveformImage" Height="40" Margin="5,0,5,0" Stretch="Fill" Opacity="0.5" IsHitTestVisible="False"/>
-                            <Slider x:Name="ProgressSlider" VerticalAlignment="Center" Minimum="0" Maximum="100" IsMoveToPointEnabled="True" ValueChanged="ProgressSlider_ValueChanged" Background="Transparent"/>
+                            <Grid x:Name="ProgressTimeline" Height="14" VerticalAlignment="Center" Margin="5,0,5,0"
+                                  MouseLeftButtonDown="ProgressTimeline_MouseLeftButtonDown"
+                                  MouseMove="ProgressTimeline_MouseMove"
+                                  MouseLeftButtonUp="ProgressTimeline_MouseLeftButtonUp"
+                                  SizeChanged="ProgressTimeline_SizeChanged">
+                                <Border Height="4" CornerRadius="2" Background="#3A3A3A" VerticalAlignment="Center"/>
+                                <Border x:Name="ProgressFill" Height="4" CornerRadius="2" Background="#FFFFFFFF" VerticalAlignment="Center" HorizontalAlignment="Left" Width="0"/>
+                                <Border x:Name="ProgressHandle" Width="12" Height="12" CornerRadius="6" Background="#FFFFFFFF" BorderBrush="#FF1A1A1A" BorderThickness="1" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-6,0,0,0"/>
+                            </Grid>
                             <Canvas x:Name="TrimCanvas" Height="40" Margin="5,0,5,0" SizeChanged="TrimCanvas_SizeChanged">
                                 <Rectangle x:Name="TrimHighlight" Height="40" Fill="#40FFD700" Canvas.Top="0" IsHitTestVisible="False"/>
                                 <Thumb x:Name="ThumbStart" DragDelta="ThumbStart_DragDelta" Cursor="SizeWE" Canvas.Top="0" Canvas.Left="0">
@@ -450,8 +466,8 @@
                     <TextBlock Text="{DynamicResource TxtTagColor}" Foreground="#AAAAAA" FontSize="14" HorizontalAlignment="Left" Margin="0,0,0,5"/>
                     <ComboBox x:Name="CmbTagColor" Background="#111111" Foreground="White" BorderBrush="#333333" Margin="0,0,0,20">
                         <ComboBoxItem Content="Red" Foreground="Red" Tag="#FF0000" IsSelected="True"/>
-                        <ComboBoxItem Content="Green" Foreground="LightGreen" Tag="#00FF00"/>
-                        <ComboBoxItem Content="Blue" Foreground="LightBlue" Tag="#0080FF"/>
+                        <ComboBoxItem Content="Green" Foreground="LawnGreen" Tag="#00FF00"/>
+                        <ComboBoxItem Content="Blue" Foreground="MediumBlue" Tag="#0080FF"/>
                         <ComboBoxItem Content="Yellow" Foreground="Yellow" Tag="#FFFF00"/>
                         <ComboBoxItem Content="Purple" Foreground="MediumPurple" Tag="#A020F0"/>
                         <ComboBoxItem Content="Orange" Foreground="Orange" Tag="#FFA500"/>

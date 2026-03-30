@@ -112,6 +112,8 @@
     <system:String x:Key="TxtTrayQuit">Quit</system:String>
     <system:String x:Key="TxtTrayRunning">Running in background. Press {0} to save a clip.</system:String>
     <system:String x:Key="TxtTraySavedTo">Saved to</system:String>
+    <system:String x:Key="TxtAudioDeviceNoneWarning">Background recording is enabled but at least one audio device is set to None. Clips may be saved without full audio.</system:String>
+    <system:String x:Key="TxtDismiss">Dismiss</system:String>
 
     <system:String x:Key="TxtAllClips">Clips</system:String>
     <system:String x:Key="TxtTotalClipsSize">Total clips size</system:String>

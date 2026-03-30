@@ -47,7 +47,6 @@ namespace ClipManager
 
         private LibVLC _libVLC = null!;
         private LibVLCSharp.Shared.MediaPlayer _mediaPlayer = null!;
-        private bool _isUpdatingFromPlayer = false;
         private string _basePath = "";
         private string _outPath = "";
         private string _language = "en";
@@ -79,8 +78,12 @@ namespace ClipManager
 
         private bool _isScrubbing = false;
         private bool _isLoaded = false;
-        private bool _wasPlayingBeforeScrub = false;
-        private DateTime _lastScrubTime = DateTime.MinValue;
+        private long _playbackUiTimeMs = 0;
+        private bool _isTimelineMouseScrubbing = false;
+        private bool _resumeAfterTimelineScrub = false;
+        private DateTime _lastFrameStepAt = DateTime.MinValue;
+        private const int FrameStepMs = 16;
+        private System.Threading.CancellationTokenSource? _pausedSeekRenderCts;
         private bool _isVideoFullscreen = false;
         private WindowState _windowStateBeforeFullscreen;
         private WindowStyle _windowStyleBeforeFullscreen;
@@ -99,8 +102,7 @@ namespace ClipManager
         private Visibility _topBarVisibilityBeforeFullscreen;
         private GridLength _sidebarColumnWidthBeforeFullscreen;
         private GridLength _contentColumnWidthBeforeFullscreen;
-        private DateTime _lastVideoClickAt = DateTime.MinValue;
-        private System.Windows.Point _lastVideoClickPos;
+        private System.Windows.Threading.DispatcherTimer _videoSingleClickTimer = null!;
         private const int FullscreenDoubleClickMaxMs = 220;
 
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto, SetLastError = true)]
@@ -160,6 +162,7 @@ namespace ClipManager
         private string _audioInputId = "";
         private string _cameraId = "";
         private bool _cameraOverlayEnabled = false;
+        private bool _audioWarningDismissed = false;
         private AudioPipeRecorder? _audioOutputRecorder;
         private AudioPipeRecorder? _audioInputRecorder;
         private bool _actualClose = false;
@@ -176,14 +179,17 @@ namespace ClipManager
             InitializeComponent();
             this.PreviewKeyDown += MainWindow_PreviewKeyDown;
 
-            ProgressSlider.AddHandler(System.Windows.Controls.Primitives.Thumb.DragStartedEvent, new System.Windows.Controls.Primitives.DragStartedEventHandler(ProgressSlider_DragStarted));
-            ProgressSlider.AddHandler(System.Windows.Controls.Primitives.Thumb.DragCompletedEvent, new System.Windows.Controls.Primitives.DragCompletedEventHandler(ProgressSlider_DragCompleted));
-
             _hoverTimer = new System.Windows.Threading.DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(250)
             };
             _hoverTimer.Tick += HoverTimer_Tick;
+
+            _videoSingleClickTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(Math.Min(System.Windows.Forms.SystemInformation.DoubleClickTime, FullscreenDoubleClickMaxMs))
+            };
+            _videoSingleClickTimer.Tick += VideoSingleClickTimer_Tick;
 
             _scrollTimer = new System.Windows.Threading.DispatcherTimer
             {
@@ -391,6 +397,7 @@ namespace ClipManager
                                     var pt = VideoPlayer.PointFromScreen(screenPoint);
                                     if (pt.X >= 0 && pt.Y >= 0 && pt.X <= VideoPlayer.ActualWidth && pt.Y <= VideoPlayer.ActualHeight)
                                     {
+                                        _videoSingleClickTimer.Stop();
                                         if (_isVideoFullscreen) ExitVideoFullscreen();
                                         else EnterVideoFullscreen();
                                     }
@@ -398,7 +405,6 @@ namespace ClipManager
                             }
                             catch { }
                         }));
-                        return (IntPtr)1;
                     }
                 }
                 else if (wParam == (IntPtr)WM_LBUTTONDOWN)
@@ -416,28 +422,19 @@ namespace ClipManager
                                     var pt = VideoPlayer.PointFromScreen(screenPoint);
                                     if (pt.X >= 0 && pt.Y >= 0 && pt.X <= VideoPlayer.ActualWidth && pt.Y <= VideoPlayer.ActualHeight)
                                     {
-                                        var now = DateTime.Now;
-                                        bool isDoubleClick = (now - _lastVideoClickAt).TotalMilliseconds <= Math.Min(System.Windows.Forms.SystemInformation.DoubleClickTime, FullscreenDoubleClickMaxMs)
-                                            && Math.Abs(pt.X - _lastVideoClickPos.X) <= System.Windows.Forms.SystemInformation.DoubleClickSize.Width
-                                            && Math.Abs(pt.Y - _lastVideoClickPos.Y) <= System.Windows.Forms.SystemInformation.DoubleClickSize.Height;
-
-                                        _lastVideoClickAt = now;
-                                        _lastVideoClickPos = pt;
-
-                                        if (isDoubleClick)
+                                        if (_videoSingleClickTimer.IsEnabled)
                                         {
+                                            _videoSingleClickTimer.Stop();
                                             if (_isVideoFullscreen) ExitVideoFullscreen();
                                             else EnterVideoFullscreen();
-                                            return;
+                                        }
+                                        else
+                                        {
+                                            _videoSingleClickTimer.Stop();
+                                            _videoSingleClickTimer.Start();
                                         }
 
-                                        bool willPlay = _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Ended
-                                            || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Stopped
-                                            || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Error
-                                            || !_mediaPlayer.IsPlaying;
-
-                                        PlayPauseButton_Click(null, null);
-                                        ShowPlayPauseAnimation(willPlay);
+                                        return;
                                     }
                                 }
                             }
@@ -447,6 +444,25 @@ namespace ClipManager
                 }
             }
             return CallNextHookEx(_mouseHookID, nCode, wParam, lParam);
+        }
+
+        private void VideoSingleClickTimer_Tick(object? sender, EventArgs e)
+        {
+            _videoSingleClickTimer.Stop();
+            try
+            {
+                if (PlayerOverlay != null && PlayerOverlay.Visibility == Visibility.Visible && _mediaPlayer != null)
+                {
+                    bool willPlay = _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Ended
+                        || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Stopped
+                        || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Error
+                        || !_mediaPlayer.IsPlaying;
+
+                    PlayPauseButton_Click(null, null);
+                    ShowPlayPauseAnimation(willPlay);
+                }
+            }
+            catch { }
         }
 
         
@@ -510,6 +526,9 @@ namespace ClipManager
         {
             if (_hookID != IntPtr.Zero) UnhookWindowsHookEx(_hookID);
             if (_mouseHookID != IntPtr.Zero) UnhookWindowsHookEx(_mouseHookID);
+            _videoSingleClickTimer.Stop();
+            _pausedSeekRenderCts?.Cancel();
+            _pausedSeekRenderCts?.Dispose();
             StopBackgroundRecorder();
             if (_notifyIcon != null)
             {
@@ -1131,7 +1150,32 @@ namespace ClipManager
                 RunAutoDelete();
             }
 
+            UpdateAudioDeviceWarningVisibility();
+
             _isLoaded = true;
+        }
+
+        private void UpdateAudioDeviceWarningVisibility()
+        {
+            if (AudioDevicesWarningStrip == null) return;
+
+            bool hasNoneAudioDevice = string.IsNullOrEmpty(_audioOutputId) || string.IsNullOrEmpty(_audioInputId);
+            bool shouldShow = _recordEnabled && hasNoneAudioDevice;
+
+            if (!shouldShow)
+            {
+                _audioWarningDismissed = false;
+            }
+
+            AudioDevicesWarningStrip.Visibility = shouldShow && !_audioWarningDismissed
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        private void BtnDismissAudioWarning_Click(object sender, RoutedEventArgs e)
+        {
+            _audioWarningDismissed = true;
+            UpdateAudioDeviceWarningVisibility();
         }
 
         
@@ -2120,14 +2164,7 @@ namespace ClipManager
                 if (_mediaPlayer.Length - _mediaPlayer.Time > 5000)
                 {
                     long newTime = _mediaPlayer.Time + 5000;
-                    _mediaPlayer.Time = newTime;
-                    if (!_mediaPlayer.IsPlaying)
-                    {
-                        _isUpdatingFromPlayer = true;
-                        ProgressSlider.Value = newTime;
-                        TimeDisplay.Text = $"{TimeSpan.FromMilliseconds(newTime):mm\\:ss\\.ff} / {TimeSpan.FromMilliseconds(_mediaPlayer.Length):mm\\:ss\\.ff}";
-                        _isUpdatingFromPlayer = false;
-                    }
+                    SeekToTime(newTime, true);
                 }
             }
             else if (e.Key == System.Windows.Input.Key.Left)
@@ -2135,56 +2172,199 @@ namespace ClipManager
                 e.Handled = true;
                 ShowOverlayAnimation("backward.png");
                 long newTime = (long)Math.Max(0, _mediaPlayer.Time - 5000);
-                _mediaPlayer.Time = newTime;
-                if (!_mediaPlayer.IsPlaying)
-                {
-                    _isUpdatingFromPlayer = true;
-                    ProgressSlider.Value = newTime;
-                    TimeDisplay.Text = $"{TimeSpan.FromMilliseconds(newTime):mm\\:ss\\.ff} / {TimeSpan.FromMilliseconds(_mediaPlayer.Length):mm\\:ss\\.ff}";
-                    _isUpdatingFromPlayer = false;
-                }
+                SeekToTime(newTime, true);
             }
             else if (e.Key == System.Windows.Input.Key.OemComma)
             {
                 e.Handled = true;
+                if ((DateTime.UtcNow - _lastFrameStepAt).TotalMilliseconds < 20) return;
+                _lastFrameStepAt = DateTime.UtcNow;
                 if (_mediaPlayer.IsPlaying) { _mediaPlayer.Pause(); UpdatePlayPauseIcon(false); }
-                long newTime = (long)Math.Max(0, _mediaPlayer.Time - 33);
-                _mediaPlayer.Time = newTime;
-                _isUpdatingFromPlayer = true;
-                ProgressSlider.Value = newTime;
-                TimeDisplay.Text = $"{TimeSpan.FromMilliseconds(newTime):mm\\:ss\\.ff} / {TimeSpan.FromMilliseconds(_mediaPlayer.Length):mm\\:ss}";
-                _isUpdatingFromPlayer = false;
+                long currentTime = GetEffectivePlaybackTimeMs();
+                long newTime = Math.Max(0, currentTime - FrameStepMs);
+                SeekToTime(newTime, true);
             }
             else if (e.Key == System.Windows.Input.Key.OemPeriod)
             {
                 e.Handled = true;
+                if ((DateTime.UtcNow - _lastFrameStepAt).TotalMilliseconds < 20) return;
+                _lastFrameStepAt = DateTime.UtcNow;
                 if (_mediaPlayer.IsPlaying) { _mediaPlayer.Pause(); UpdatePlayPauseIcon(false); }
-                if (_mediaPlayer.Length - _mediaPlayer.Time > 16)
+                if (_mediaPlayer.Length - _mediaPlayer.Time > 1)
                 {
-                    long oldTime = _mediaPlayer.Time;
-                    _mediaPlayer.NextFrame();
-
-                    
-                    _ = Task.Run(async () =>
-                    {
-                        for (int i = 0; i < 20; i++)
-                        {
-                            await Task.Delay(10);
-                            long t = _mediaPlayer.Time;
-                            if (t != oldTime && t >= 0)
-                            {
-                                _ = Dispatcher.BeginInvoke(new Action(() =>
-                                {
-                                    _isUpdatingFromPlayer = true;
-                                    ProgressSlider.Value = t;
-                                    TimeDisplay.Text = $"{TimeSpan.FromMilliseconds(t):mm\\:ss\\.ff} / {TimeSpan.FromMilliseconds(_mediaPlayer.Length):mm\\:ss}";
-                                    _isUpdatingFromPlayer = false;
-                                }));
-                                break;
-                            }
-                        }
-                    });
+                    long oldTime = GetEffectivePlaybackTimeMs();
+                    long nextTime = Math.Min(GetSeekMaxTimeMs(), oldTime + FrameStepMs);
+                    SeekToTime(nextTime, true);
                 }
+            }
+        }
+
+        private long GetEffectivePlaybackTimeMs()
+        {
+            return Math.Max(Math.Max(0, _mediaPlayer.Time), _playbackUiTimeMs);
+        }
+
+        private long GetSeekMaxTimeMs()
+        {
+            if (_mediaPlayer == null || _mediaPlayer.Length <= 0) return 0;
+            return _mediaPlayer.Length > 1000 ? _mediaPlayer.Length - 1000 : Math.Max(0, _mediaPlayer.Length);
+        }
+
+        private void SeekToTime(long timeMs, bool updateUi)
+        {
+            long target = Math.Max(0, Math.Min(GetSeekMaxTimeMs(), timeMs));
+            _mediaPlayer.Time = target;
+
+            if (_mediaPlayer.IsPlaying)
+            {
+                _pausedSeekRenderCts?.Cancel();
+            }
+            else
+            {
+                SchedulePausedFrameRefresh(target);
+            }
+
+            if (updateUi)
+            {
+                UpdatePlaybackPositionUI(target);
+            }
+        }
+
+        private void SchedulePausedFrameRefresh(long target)
+        {
+            _pausedSeekRenderCts?.Cancel();
+            _pausedSeekRenderCts = new System.Threading.CancellationTokenSource();
+            var token = _pausedSeekRenderCts.Token;
+            _ = EnsurePausedFrameRenderedAsync(target, token);
+        }
+
+        private async Task EnsurePausedFrameRenderedAsync(long target, System.Threading.CancellationToken token)
+        {
+            try
+            {
+                await Task.Delay(8, token);
+                if (token.IsCancellationRequested || _mediaPlayer == null || _mediaPlayer.IsPlaying) return;
+
+                long actual = _mediaPlayer.Time;
+                if (Math.Abs(actual - target) <= FrameStepMs) return;
+
+                _mediaPlayer.Play();
+                await Task.Delay(14, token);
+                if (token.IsCancellationRequested || _mediaPlayer == null) return;
+
+                _mediaPlayer.Pause();
+                _mediaPlayer.Time = target;
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            catch
+            {
+            }
+        }
+
+        private void UpdatePlaybackPositionUI(long timeMs)
+        {
+            _playbackUiTimeMs = Math.Max(0, timeMs);
+            if (_mediaPlayer != null)
+            {
+                _playbackUiTimeMs = Math.Min(_playbackUiTimeMs, GetSeekMaxTimeMs());
+                TimeDisplay.Text = $"{TimeSpan.FromMilliseconds(_playbackUiTimeMs):mm\\:ss\\.ff} / {TimeSpan.FromMilliseconds(_mediaPlayer.Length):mm\\:ss}";
+            }
+
+            UpdateProgressTimelineVisual();
+        }
+
+        private void UpdateProgressTimelineVisual()
+        {
+            if (ProgressTimeline == null || ProgressFill == null || ProgressHandle == null) return;
+
+            double width = ProgressTimeline.ActualWidth;
+            if (width <= 0)
+            {
+                ProgressFill.Width = 0;
+                ProgressHandle.Margin = new Thickness(-6, 0, 0, 0);
+                return;
+            }
+
+            long max = GetSeekMaxTimeMs();
+            if (max <= 0)
+            {
+                ProgressFill.Width = 0;
+                ProgressHandle.Margin = new Thickness(-6, 0, 0, 0);
+                return;
+            }
+
+            double ratio = Math.Max(0, Math.Min(1, _playbackUiTimeMs / (double)max));
+            double x = ratio * width;
+            ProgressFill.Width = x;
+            ProgressHandle.Margin = new Thickness(x - (ProgressHandle.Width / 2), 0, 0, 0);
+        }
+
+        private void ProgressTimeline_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            UpdateProgressTimelineVisual();
+        }
+
+        private void ProgressTimeline_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (_mediaPlayer == null || _mediaPlayer.Length <= 0) return;
+
+            _isTimelineMouseScrubbing = true;
+            _isScrubbing = true;
+            _resumeAfterTimelineScrub = _mediaPlayer.IsPlaying;
+            if (_resumeAfterTimelineScrub)
+            {
+                _mediaPlayer.Pause();
+                UpdatePlayPauseIcon(false);
+            }
+
+            ProgressTimeline.CaptureMouse();
+            SeekToTimelinePointer(e.GetPosition(ProgressTimeline), true);
+            e.Handled = true;
+        }
+
+        private void ProgressTimeline_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (!_isTimelineMouseScrubbing || e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
+
+            SeekToTimelinePointer(e.GetPosition(ProgressTimeline), true);
+            e.Handled = true;
+        }
+
+        private void ProgressTimeline_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (!_isTimelineMouseScrubbing) return;
+
+            SeekToTimelinePointer(e.GetPosition(ProgressTimeline), true);
+            _isTimelineMouseScrubbing = false;
+            _isScrubbing = false;
+            ProgressTimeline.ReleaseMouseCapture();
+
+            if (_resumeAfterTimelineScrub)
+            {
+                _mediaPlayer.Play();
+                UpdatePlayPauseIcon(true);
+            }
+            _resumeAfterTimelineScrub = false;
+            e.Handled = true;
+        }
+
+        private void SeekToTimelinePointer(System.Windows.Point pt, bool applyToPlayer)
+        {
+            if (_mediaPlayer == null || _mediaPlayer.Length <= 0 || ProgressTimeline.ActualWidth <= 0) return;
+
+            double ratio = Math.Max(0, Math.Min(1, pt.X / ProgressTimeline.ActualWidth));
+            long maxSeek = GetSeekMaxTimeMs();
+            long t = (long)Math.Round(ratio * maxSeek);
+
+            if (applyToPlayer)
+            {
+                SeekToTime(t, true);
+            }
+            else
+            {
+                UpdatePlaybackPositionUI(t);
             }
         }
 
@@ -2233,7 +2413,7 @@ namespace ClipManager
                 Directory.CreateDirectory(cachePath);
 
                 string hash = GetCacheFolderName(clip);
-                string waveFile = Path.Combine(cachePath, $"{hash}_v2.png");
+                string waveFile = Path.Combine(cachePath, $"{hash}_v3.png");
 
                 if (!File.Exists(waveFile))
                 {
@@ -2244,7 +2424,7 @@ namespace ClipManager
                     {
                         var process = new System.Diagnostics.Process();
                         process.StartInfo.FileName = ffmpegPath;
-                        process.StartInfo.Arguments = $"-y -i \"{clip.FullPath}\" -filter_complex \"[0:a]aformat=channel_layouts=mono,volume=5.0,showwavespic=s=800x80:colors=Yellow:scale=cbrt\" -frames:v 1 \"{waveFile}\"";
+                        process.StartInfo.Arguments = $"-y -i \"{clip.FullPath}\" -filter_complex \"[0:a]aformat=channel_layouts=mono,volume=5.0,showwavespic=s=800x80:colors=White:scale=cbrt\" -frames:v 1 \"{waveFile}\"";
                         process.StartInfo.UseShellExecute = false;
                         process.StartInfo.CreateNoWindow = true;
                         process.Start();
@@ -2296,9 +2476,7 @@ namespace ClipManager
                 _currentClip = clip;
                 _trimStartMs = 0;
                 _trimEndMs = _videoDurationMs;
-                _isUpdatingFromPlayer = true;
-                ProgressSlider.Value = 0;
-                _isUpdatingFromPlayer = false;
+                UpdatePlaybackPositionUI(0);
                 PlayerOverlay.Visibility = Visibility.Visible;
                 VideoPlayer.Visibility = Visibility.Visible;
                 if (SpeedSlider != null) SpeedSlider.Value = 1.0;
@@ -2340,8 +2518,6 @@ namespace ClipManager
         {
             if (e.ClickCount == 2 && PlayerOverlay.Visibility == Visibility.Visible)
             {
-                if (_isVideoFullscreen) ExitVideoFullscreen();
-                else EnterVideoFullscreen();
                 e.Handled = true;
             }
         }
@@ -2468,27 +2644,22 @@ namespace ClipManager
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                _isUpdatingFromPlayer = true;
-                ProgressSlider.Maximum = e.Length;
                 _videoDurationMs = e.Length;
                 _trimEndMs = e.Length;
                 _trimStartMs = 0;
                 UpdateBracketsUI();
-                _isUpdatingFromPlayer = false;
+                UpdatePlaybackPositionUI(Math.Min(_playbackUiTimeMs, GetSeekMaxTimeMs()));
             }));
         }
         private void MediaPlayer_TimeChanged(object? sender,
                                              MediaPlayerTimeChangedEventArgs e)
         {
-            if (_isScrubbing) return;
+            if (_isScrubbing || _isTimelineMouseScrubbing) return;
+            if (_mediaPlayer == null || !_mediaPlayer.IsPlaying) return;
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (_isScrubbing) return;
-                _isUpdatingFromPlayer = true;
-                ProgressSlider.Value = e.Time;
-                TimeDisplay.Text =
-                    $"{TimeSpan.FromMilliseconds(e.Time):mm\\:ss\\.ff} / {TimeSpan.FromMilliseconds(_mediaPlayer.Length):mm\\:ss}";
-                _isUpdatingFromPlayer = false;
+                if (_isScrubbing || _isTimelineMouseScrubbing || !_mediaPlayer.IsPlaying) return;
+                UpdatePlaybackPositionUI(e.Time);
             }));
         }
 
@@ -2502,74 +2673,7 @@ namespace ClipManager
         }
 
         
-        private void ProgressSlider_DragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
-        {
-            _isScrubbing = true;
-            if (_mediaPlayer != null)
-            {
-                _wasPlayingBeforeScrub = _mediaPlayer.IsPlaying;
-                if (_wasPlayingBeforeScrub)
-                {
-                    _mediaPlayer.Pause();
-                    UpdatePlayPauseIcon(false);
-                }
-            }
-        }
 
-        
-        private void ProgressSlider_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
-        {
-            _isScrubbing = false;
-            if (_mediaPlayer != null)
-            {
-                long t = (long)Math.Max(0, Math.Min(_mediaPlayer.Length > 1000 ? _mediaPlayer.Length - 1000 : 0, ProgressSlider.Value));
-                _mediaPlayer.Time = t;
-
-                if (_wasPlayingBeforeScrub)
-                {
-                    _mediaPlayer.Play();
-                    UpdatePlayPauseIcon(true);
-                }
-            }
-        }
-
-        private void ProgressSlider_ValueChanged(
-            object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (!_isUpdatingFromPlayer && _mediaPlayer != null)
-            {
-                if (_mediaPlayer.State == LibVLCSharp.Shared.VLCState.Ended || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Stopped)
-                {
-                    if (_currentClip != null)
-                    {
-                        var m = new Media(_libVLC, new Uri(_currentClip.FullPath));
-                        _mediaPlayer.Play(m);
-                        UpdatePlayPauseIcon(true);
-                    }
-                }
-                long t = (long)Math.Max(0, Math.Min(_mediaPlayer.Length > 1000 ? _mediaPlayer.Length - 1000 : 0, (long)e.NewValue));
-                if (!_isScrubbing)
-                {
-                    _mediaPlayer.Time = t;
-                    if (!_mediaPlayer.IsPlaying)
-                    {
-                        TimeDisplay.Text = $"{TimeSpan.FromMilliseconds(t):mm\\:ss\\.ff} / {TimeSpan.FromMilliseconds(_mediaPlayer.Length):mm\\:ss}";
-                    }
-                }
-                else
-                {
-                    if ((DateTime.Now - _lastScrubTime).TotalMilliseconds > 40) 
-                    {
-                        _lastScrubTime = DateTime.Now;
-                        Task.Run(() =>
-                        {
-                            try { if (_mediaPlayer != null) _mediaPlayer.Time = t; } catch { }
-                        });
-                    }
-                    TimeDisplay.Text = $"{TimeSpan.FromMilliseconds(t):mm\\:ss\\.ff} / {TimeSpan.FromMilliseconds(_mediaPlayer.Length):mm\\:ss}";
-                }
-            }
-        }
         private void VolumeSlider_ValueChanged(
             object sender, RoutedPropertyChangedEventArgs<double> e)
         {
@@ -3806,6 +3910,7 @@ namespace ClipManager
             if (AudioOutputComboBox.SelectedItem is AudioDeviceItem item)
             {
                 _audioOutputId = item.Id;
+                UpdateAudioDeviceWarningVisibility();
             }
         }
 
@@ -3899,6 +4004,7 @@ namespace ClipManager
             if (AudioInputComboBox.SelectedItem is AudioDeviceItem item)
             {
                 _audioInputId = item.Id;
+                UpdateAudioDeviceWarningVisibility();
             }
         }
 
@@ -3976,6 +4082,8 @@ namespace ClipManager
                     if (_recordEnabled) StartBackgroundRecorder();
                     else StopBackgroundRecorder();
                 }
+
+                UpdateAudioDeviceWarningVisibility();
             }
         }
 
