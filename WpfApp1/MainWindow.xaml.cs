@@ -101,6 +101,7 @@ namespace ClipManager
         private GridLength _contentColumnWidthBeforeFullscreen;
         private DateTime _lastVideoClickAt = DateTime.MinValue;
         private System.Windows.Point _lastVideoClickPos;
+        private const int FullscreenDoubleClickMaxMs = 220;
 
         [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto, SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
@@ -416,7 +417,7 @@ namespace ClipManager
                                     if (pt.X >= 0 && pt.Y >= 0 && pt.X <= VideoPlayer.ActualWidth && pt.Y <= VideoPlayer.ActualHeight)
                                     {
                                         var now = DateTime.Now;
-                                        bool isDoubleClick = (now - _lastVideoClickAt).TotalMilliseconds <= System.Windows.Forms.SystemInformation.DoubleClickTime
+                                        bool isDoubleClick = (now - _lastVideoClickAt).TotalMilliseconds <= Math.Min(System.Windows.Forms.SystemInformation.DoubleClickTime, FullscreenDoubleClickMaxMs)
                                             && Math.Abs(pt.X - _lastVideoClickPos.X) <= System.Windows.Forms.SystemInformation.DoubleClickSize.Width
                                             && Math.Abs(pt.Y - _lastVideoClickPos.Y) <= System.Windows.Forms.SystemInformation.DoubleClickSize.Height;
 
@@ -1928,8 +1929,7 @@ namespace ClipManager
             }));
         }
 
-        
-        private void ShowPlayPauseAnimation(bool willPlay)
+        private void ShowOverlayAnimation(string iconFileName)
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
@@ -1942,7 +1942,7 @@ namespace ClipManager
                             PlayPausePopup.IsOpen = true;
                         }
 
-                        PlayPauseOverlayIcon.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(willPlay ? "pack://application:,,,/images/play.png" : "pack://application:,,,/images/pause.png"));
+                        PlayPauseOverlayIcon.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri($"pack://application:,,,/images/{iconFileName}"));
                         var anim = new System.Windows.Media.Animation.DoubleAnimation
                         {
                             From = 0.8,
@@ -1961,6 +1961,12 @@ namespace ClipManager
                     catch { }
                 }
             }));
+        }
+
+
+        private void ShowPlayPauseAnimation(bool willPlay)
+        {
+            ShowOverlayAnimation(willPlay ? "play.png" : "pause.png");
         }
 
         private object? _currentNavState;
@@ -2088,21 +2094,29 @@ namespace ClipManager
             if (e.Key == System.Windows.Input.Key.Space)
             {
                 e.Handled = true;
+                bool willPlay = _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Ended
+                    || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Stopped
+                    || _mediaPlayer.State == LibVLCSharp.Shared.VLCState.Error
+                    || !_mediaPlayer.IsPlaying;
                 PlayPauseButton_Click(null, null);
+                ShowPlayPauseAnimation(willPlay);
             }
             else if (e.Key == System.Windows.Input.Key.Up)
             {
                 e.Handled = true;
                 VolumeSlider.Value = Math.Min(100, VolumeSlider.Value + 5);
+                ShowOverlayAnimation("volume_up.png");
             }
             else if (e.Key == System.Windows.Input.Key.Down)
             {
                 e.Handled = true;
                 VolumeSlider.Value = Math.Max(0, VolumeSlider.Value - 5);
+                ShowOverlayAnimation("volume_down.png");
             }
             else if (e.Key == System.Windows.Input.Key.Right)
             {
                 e.Handled = true;
+                ShowOverlayAnimation("forward.png");
                 if (_mediaPlayer.Length - _mediaPlayer.Time > 5000)
                 {
                     long newTime = _mediaPlayer.Time + 5000;
@@ -2119,6 +2133,7 @@ namespace ClipManager
             else if (e.Key == System.Windows.Input.Key.Left)
             {
                 e.Handled = true;
+                ShowOverlayAnimation("backward.png");
                 long newTime = (long)Math.Max(0, _mediaPlayer.Time - 5000);
                 _mediaPlayer.Time = newTime;
                 if (!_mediaPlayer.IsPlaying)
