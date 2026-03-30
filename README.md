@@ -2,7 +2,7 @@
 
 ## An easy to use clip recorder, editor and organizer for gaming
 
-<img width="2560" height="720" alt="screens" src="https://github.com/user-attachments/assets/fb9373c6-6c95-4046-ab74-c296f7591271" />
+![gallery](https://github.com/user-attachments/assets/42c6c341-5a06-44f5-a6b9-2fc00d22f9ac)
 
 ## About
 A piece of software born out of frustration with the highly unreliable NVIDIA App- meet **Clipless**!
