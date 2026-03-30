@@ -227,15 +227,17 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" x:Name="TopBarGrid" Margin="5,0,0,10">
+                <Grid Grid.Row="0" x:Name="TopBarGrid" Margin="10,10,10,10">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="{DynamicResource TxtRecordedClips}" Foreground="Gray" FontWeight="SemiBold" Padding="10" VerticalAlignment="Center"/>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,5,10,0">
-                        <Button x:Name="BtnRefresh" Background="Transparent" Foreground="Gray" BorderThickness="0" Width="32" Height="32" Margin="0,0,15,0" Click="BtnRefresh_Click" ToolTip="{DynamicResource TxtRefresh}" Padding="2">
-                            <Image Source="/Images/refresh.png" Stretch="Uniform" Margin="2" Width="20" Height="20"/>
+                    <TextBlock Grid.Column="0" Text="{DynamicResource TxtRecordedClips}" Foreground="Gray" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <ui:TextBox Grid.Column="1" x:Name="SearchBox" PlaceholderText="Search clips..." TextChanged="SearchBox_TextChanged" VerticalAlignment="Center" ClearButtonEnabled="True" Margin="0,0,10,0"/>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="BtnRefresh" Background="Transparent" Foreground="Gray" BorderThickness="0" Width="30" Height="30" Click="BtnRefresh_Click" ToolTip="{DynamicResource TxtRefresh}" Padding="2" Margin="0,0,10,0">
+                            <Image Source="/Images/refresh.png" Stretch="Uniform" Margin="2" Width="18" Height="18"/>
                         </Button>
                         <TextBlock Text="{DynamicResource TxtSortBy}" Foreground="Gray" VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <ComboBox x:Name="SortComboBox" Width="130" SelectedIndex="0" SelectionChanged="SortComboBox_SelectionChanged">
@@ -282,7 +284,8 @@
                         </ListBox.ItemsPanel>
                     </ListBox>
                 </StackPanel>
-                <ListBox Grid.Row="1" x:Name="ClipList" Background="Transparent" BorderThickness="0" Margin="0" SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="ClipList_MouseDoubleClick" ItemTemplate="{StaticResource ClipItemTemplate}">
+                <ListBox Grid.Row="1" x:Name="ClipList" Background="Transparent" BorderThickness="0" Margin="0" SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="ClipList_MouseDoubleClick" ItemTemplate="{StaticResource ClipItemTemplate}"
+                         PreviewMouseLeftButtonDown="ClipList_PreviewMouseLeftButtonDown" MouseMove="ClipList_MouseMove" MouseLeftButtonUp="ClipList_MouseLeftButtonUp">
                     <ListBox.ContextMenu>
                         <ContextMenu>
                             <s:MenuItem x:Name="MenuTagClip" Header="{DynamicResource TxtTagWith}" />
@@ -310,6 +313,10 @@
                         </ItemsPanelTemplate>
                     </ListBox.ItemsPanel>
                 </ListBox>
+
+                <Canvas Grid.Row="1" x:Name="SelectionCanvas" IsHitTestVisible="False" Background="Transparent" ClipToBounds="True">
+                    <Border x:Name="SelectionRectangle" Visibility="Collapsed" Background="#400078D7" BorderBrush="#0078D7" BorderThickness="1" CornerRadius="2" />
+                </Canvas>
 
                 <Grid Grid.Row="1" x:Name="PlayerOverlay" Visibility="Collapsed" Background="#111111">
                     <Grid.RowDefinitions>

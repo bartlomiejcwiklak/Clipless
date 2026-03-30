@@ -164,6 +164,10 @@ namespace ClipManager
             _hoverTimer.Interval = TimeSpan.FromMilliseconds(250);
             _hoverTimer.Tick += HoverTimer_Tick;
 
+            _scrollTimer = new System.Windows.Threading.DispatcherTimer();
+            _scrollTimer.Interval = TimeSpan.FromMilliseconds(30);
+            _scrollTimer.Tick += ScrollTimer_Tick;
+
             var staThread = new System.Threading.Thread(() => {
                 foreach (var job in _staJobs.GetConsumingEnumerable()) job();
             });
@@ -800,6 +804,11 @@ namespace ClipManager
                 {
                     homeTag.Name = GetString("TxtHome") ?? "Home";
                 }
+                var allClipsTag = SpecialTagsList.FirstOrDefault(t => t.Id == "ALL_CLIPS_SPECIAL_TAG");
+                if (allClipsTag != null)
+                {
+                    allClipsTag.Name = GetString("TxtAllClips") ?? "Clips";
+                }
 
                 if (GameFolderList.SelectedItem is GameFolder selectedFolder)
                     RefreshCurrentFolder(selectedFolder.FullPath);
@@ -825,6 +834,7 @@ namespace ClipManager
         {
             SpecialTagsList.Clear();
             SpecialTagsList.Add(new ClipTag { Id = "HOME_SPECIAL_TAG", Name = GetString("TxtHome") ?? "Home", Color = "Transparent", IconPath = "/Images/home.png" });
+            SpecialTagsList.Add(new ClipTag { Id = "ALL_CLIPS_SPECIAL_TAG", Name = GetString("TxtAllClips") ?? "Clips", Color = "Transparent", IconPath = "/Images/clips.png" });
             SpecialTagsList.Add(new ClipTag { Id = "FAVORITES_SPECIAL_TAG", Name = GetString("TxtFavorites"), Color = "Transparent", IconPath = "/Images/star_filled.png" });
 
             TagsList.Clear();
@@ -1154,8 +1164,14 @@ namespace ClipManager
                 else _favorites.Remove(clip.FullPath);
                 SaveFavorites();
 
-                if (TagsListBox.SelectedItem is ClipTag t && t.Id == "FAVORITES_SPECIAL_TAG" && !clip.IsFavorite)
+                if (SpecialTagsListBox.SelectedItem is ClipTag st && st.Id == "FAVORITES_SPECIAL_TAG" && !clip.IsFavorite)
                 {
+                    _currentClips.RemoveAll(c => c.FullPath == clip.FullPath);
+                    Clips.Remove(clip);
+                }
+                else if (TagsListBox.SelectedItem is ClipTag t && t.Id == "FAVORITES_SPECIAL_TAG" && !clip.IsFavorite)
+                {
+                    _currentClips.RemoveAll(c => c.FullPath == clip.FullPath);
                     Clips.Remove(clip);
                 }
             }
@@ -1453,6 +1469,7 @@ namespace ClipManager
                 if (tag.Id == "HOME_SPECIAL_TAG")
                 {
                     Clips.Clear();
+                    _currentClips.Clear();
                     RefreshRecentClips();
                     TxtNoFolderMessage.Visibility = Visibility.Visible;
                     if (ClipList != null) ClipList.Visibility = Visibility.Collapsed;
@@ -1465,6 +1482,12 @@ namespace ClipManager
                 if (tag.Id == "FAVORITES_SPECIAL_TAG")
                 {
                     RefreshFavorites();
+                    return;
+                }
+
+                if (tag.Id == "ALL_CLIPS_SPECIAL_TAG")
+                {
+                    RefreshAllClips();
                     return;
                 }
             }
@@ -1529,11 +1552,8 @@ namespace ClipManager
                     SaveClipTags();
                 }
 
-                foreach (var clip in SortClipList(result.temp))
-                {
-                    Clips.Add(clip);
-                    LoadThumbnailAsync(clip);
-                }
+                _currentClips = result.temp;
+                ApplySearchAndSort();
             }
         }
 
@@ -1568,6 +1588,7 @@ namespace ClipManager
                     TxtNoFolderMessage.Visibility = Visibility.Visible;
                     if (TxtRecentClipsTitle != null) TxtRecentClipsTitle.Visibility = Visibility.Visible;
                     if (RecentClipsList != null) RecentClipsList.Visibility = Visibility.Visible;
+                    _currentClips.Clear();
                     Clips.Clear();
                 }
             }
@@ -1600,11 +1621,42 @@ namespace ClipManager
                 _favorites = new HashSet<string>(result.validFavorites);
                 SaveFavorites();
             }
-            foreach (var clip in SortClipList(result.temp))
-            {
-                Clips.Add(clip);
-                LoadThumbnailAsync(clip);
-            }
+            _currentClips = result.temp;
+            ApplySearchAndSort();
+        }
+
+        private async void RefreshAllClips()
+        {
+            Clips.Clear();
+            if (string.IsNullOrEmpty(_basePath) || !Directory.Exists(_basePath))
+                return;
+
+            var favoritesSnapshot = new HashSet<string>(_favorites);
+            var clipMapSnapshot = new Dictionary<string, HashSet<string>>(_clipTagMap);
+            var tagsListSnapshot = TagsList.ToList();
+            string fileCreatedStr = GetString("TxtFileCreated");
+            string bp = _basePath;
+
+            var temp = await Task.Run(() => {
+                var list = new List<string>();
+                try {
+                    list.AddRange(Directory.GetFiles(bp, "*.mp4"));
+                    foreach (string path in Directory.GetDirectories(bp))
+                    {
+                        list.AddRange(Directory.GetFiles(path, "*.mp4"));
+                    }
+                } catch { }
+
+                var outList = new List<VideoClip>();
+                foreach (string file in list)
+                {
+                    outList.Add(CreateClipModel(file, fileCreatedStr, favoritesSnapshot.Contains(file), clipMapSnapshot, tagsListSnapshot));
+                }
+                return outList;
+            });
+
+            _currentClips = temp;
+            ApplySearchAndSort();
         }
 
         private async void RefreshRecentClips()
@@ -1669,11 +1721,8 @@ namespace ClipManager
                 return list;
             });
 
-            foreach (var clip in SortClipList(temp))
-            {
-                Clips.Add(clip);
-                LoadThumbnailAsync(clip);
-            }
+            _currentClips = temp;
+            ApplySearchAndSort();
         }
 
         private DateTime _lastUp = DateTime.MinValue;
@@ -1689,11 +1738,15 @@ namespace ClipManager
                 {
                     if (Directory.Exists(f.FullPath)) RefreshCurrentFolder(f.FullPath);
                 }
+                else if (SpecialTagsListBox.SelectedItem is ClipTag st)
+                {
+                    if (st.Id == "FAVORITES_SPECIAL_TAG") RefreshFavorites();
+                    else if (st.Id == "HOME_SPECIAL_TAG") RefreshRecentClips();
+                    else if (st.Id == "ALL_CLIPS_SPECIAL_TAG") RefreshAllClips();
+                }
                 else if (TagsListBox.SelectedItem is ClipTag t)
                 {
-                    if (t.Id == "FAVORITES_SPECIAL_TAG") RefreshFavorites();
-                    else if (t.Id == "HOME_SPECIAL_TAG") RefreshRecentClips();
-                    else TagsListBox_SelectionChanged(null, null);
+                    TagsListBox_SelectionChanged(null, null);
                 }
             }));
         }
@@ -1809,7 +1862,7 @@ namespace ClipManager
             }
             else if (state is ClipTag t)
             {
-                if (t.Id == "HOME_SPECIAL_TAG" || t.Id == "FAVORITES_SPECIAL_TAG")
+                if (t.Id == "HOME_SPECIAL_TAG" || t.Id == "ALL_CLIPS_SPECIAL_TAG" || t.Id == "FAVORITES_SPECIAL_TAG")
                 {
                     SpecialTagsListBox.SelectedItem = SpecialTagsList.FirstOrDefault(x => x.Id == t.Id) ?? t;
                 }
@@ -1824,8 +1877,32 @@ namespace ClipManager
         private void MainWindow_PreviewKeyDown(
             object sender, System.Windows.Input.KeyEventArgs e)
         {
-            if (PlayerOverlay.Visibility != Visibility.Visible ||
-                _mediaPlayer == null)
+            if (PlayerOverlay.Visibility != Visibility.Visible)
+            {
+                if (e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase) return;
+
+                bool isCtrl = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+                if (isCtrl && e.Key == System.Windows.Input.Key.C) { MenuCopy_Click(null, null); e.Handled = true; }
+                else if (isCtrl && e.Key == System.Windows.Input.Key.X) { MenuCut_Click(null, null); e.Handled = true; }
+                else if (isCtrl && e.Key == System.Windows.Input.Key.V) { MenuClipPaste_Click(null, null); e.Handled = true; }
+                else if (e.Key == System.Windows.Input.Key.Delete) { MenuDelete_Click(null, null); e.Handled = true; }
+                else if (isCtrl && e.Key == System.Windows.Input.Key.A)
+                {
+                    if (ClipList != null && ClipList.Visibility == Visibility.Visible)
+                    {
+                        ClipList.SelectAll();
+                        e.Handled = true;
+                    }
+                    else if (RecentClipsList != null && RecentClipsList.Visibility == Visibility.Visible)
+                    {
+                        RecentClipsList.SelectAll();
+                        e.Handled = true;
+                    }
+                }
+                return;
+            }
+
+            if (_mediaPlayer == null)
                 return;
             if (e.Key == System.Windows.Input.Key.Space)
             {
@@ -1942,11 +2019,7 @@ namespace ClipManager
         private void SortComboBox_SelectionChanged(object sender,
                                                    SelectionChangedEventArgs e)
         {
-            if (Clips == null || Clips.Count == 0)
-                return;
-            var sorted = SortClipList(Clips.ToList());
-            Clips.Clear();
-            foreach (var clip in sorted) Clips.Add(clip);
+            ApplySearchAndSort();
         }
 
         private async Task GenerateAndLoadWaveformAsync(VideoClip clip)
@@ -2341,8 +2414,7 @@ namespace ClipManager
             foreach (VideoClip c in selectedItems) f.Add(c.FullPath);
             System.Windows.DataObject d = new System.Windows.DataObject();
             d.SetFileDropList(f);
-            d.SetData("Preferred DropEffect",
-                      new MemoryStream(new byte[] { 2, 0, 0, 0 }));
+            d.SetData("Preferred DropEffect", new MemoryStream(BitConverter.GetBytes(2)));
             System.Windows.Clipboard.SetDataObject(d);
         }
         private void MenuClipPaste_Click(object sender, RoutedEventArgs e)
@@ -2350,19 +2422,47 @@ namespace ClipManager
             if (GameFolderList.SelectedItem is GameFolder f &&
                 System.Windows.Clipboard.ContainsFileDropList())
             {
-                foreach (string file in System.Windows.Clipboard.GetFileDropList())
-                    if (File.Exists(file) &&
-                        file.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
-                        try
-                        {
-                            File.Copy(file, Path.Combine(f.FullPath, Path.GetFileName(file)),
-                                      true);
-                        }
-                        catch
-                        {
-                        }
-                RefreshCurrentFolder(f.FullPath);
+                PasteFilesToFolder(f.FullPath);
             }
+        }
+
+        private void PasteFilesToFolder(string folderPath)
+        {
+            bool isMove = false;
+            var dataObj = System.Windows.Clipboard.GetDataObject();
+            if (dataObj != null && dataObj.GetDataPresent("Preferred DropEffect"))
+            {
+                var stream = dataObj.GetData("Preferred DropEffect") as MemoryStream;
+                if (stream != null)
+                {
+                    byte[] bytes = stream.ToArray();
+                    if (bytes.Length >= 4)
+                    {
+                        if (BitConverter.ToInt32(bytes, 0) == 2) isMove = true;
+                    }
+                }
+            }
+
+            foreach (string file in System.Windows.Clipboard.GetFileDropList())
+            {
+                if (File.Exists(file) && file.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        string dest = Path.Combine(folderPath, Path.GetFileName(file));
+                        if (isMove && file != dest)
+                        {
+                            File.Move(file, dest);
+                        }
+                        else
+                        {
+                            File.Copy(file, dest, true);
+                        }
+                    }
+                    catch { }
+                }
+            }
+            RefreshCurrentFolder(folderPath);
         }
 
         private async Task<System.Windows.MessageBoxResult>
@@ -2400,17 +2500,35 @@ namespace ClipManager
             var selectedItems = ClipList.SelectedItems.Count > 0 ? ClipList.SelectedItems : RecentClipsList.SelectedItems;
             if (selectedItems.Count == 0)
                 return;
+
+            var itemsList = selectedItems.Cast<VideoClip>().ToList();
             if (await ShowDeleteConfirmOverlayAsync("TxtConfirmDeleteTitle",
                                                     "TxtConfirmDelete") ==
                 System.Windows.MessageBoxResult.Yes)
-                foreach (var c in selectedItems.Cast<VideoClip>().ToList())
+            {
+                bool deletedAny = false;
+                foreach (var c in itemsList)
+                {
                     try
                     {
                         File.Delete(c.FullPath);
+                        deletedAny = true;
                     }
                     catch
                     {
                     }
+                }
+
+                if (deletedAny)
+                {
+                    foreach (var c in itemsList)
+                    {
+                        Clips.Remove(c);
+                        if (_currentClips != null) _currentClips.Remove(c);
+                        RecentClips.Remove(c);
+                    }
+                }
+            }
         }
 
         private VideoClip _clipRen;
@@ -2559,18 +2677,7 @@ namespace ClipManager
             if (GameFolderList.SelectedItem is GameFolder f &&
                 System.Windows.Clipboard.ContainsFileDropList())
             {
-                foreach (string file in System.Windows.Clipboard.GetFileDropList())
-                    if (File.Exists(file) &&
-                        file.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
-                        try
-                        {
-                            File.Copy(file, Path.Combine(f.FullPath, Path.GetFileName(file)),
-                                      true);
-                        }
-                        catch
-                        {
-                        }
-                RefreshCurrentFolder(f.FullPath);
+                PasteFilesToFolder(f.FullPath);
             }
         }
 
@@ -2835,6 +2942,32 @@ namespace ClipManager
         }
 
         private VideoClip _hoveredClip;
+        private List<VideoClip> _currentClips = new List<VideoClip>();
+
+        private void ApplySearchAndSort()
+        {
+            if (_currentClips == null) return;
+            Clips.Clear();
+            var filtered = _currentClips.AsEnumerable();
+
+            if (SearchBox != null && !string.IsNullOrWhiteSpace(SearchBox.Text))
+            {
+                string query = SearchBox.Text.ToLowerInvariant();
+                filtered = filtered.Where(c => c.Name.ToLowerInvariant().Contains(query));
+            }
+
+            foreach (var clip in SortClipList(filtered.ToList()))
+            {
+                Clips.Add(clip);
+                LoadThumbnailAsync(clip);
+            }
+        }
+
+        private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_isLoaded)
+                ApplySearchAndSort();
+        }
 
         private void Clip_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
         {
@@ -2918,6 +3051,12 @@ namespace ClipManager
         }
 
         private System.Windows.Point? _dragStartPoint;
+        private bool _isRectangleSelecting;
+        private System.Windows.Point _rectStartPoint;
+        private ScrollViewer _clipListScrollViewer;
+        private System.Windows.Threading.DispatcherTimer _scrollTimer;
+        private double _scrollStartOffset;
+        private System.Windows.Point _lastMousePos;
 
         private void Clip_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
@@ -2926,7 +3065,7 @@ namespace ClipManager
 
         private void Clip_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
         {
-            if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed && _dragStartPoint.HasValue)
+            if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed && _dragStartPoint.HasValue && !_isRectangleSelecting)
             {
                 System.Windows.Point currentPosition = e.GetPosition(null);
                 if (Math.Abs(currentPosition.X - _dragStartPoint.Value.X) > SystemParameters.MinimumHorizontalDragDistance ||
@@ -2940,6 +3079,149 @@ namespace ClipManager
                         e.Handled = true;
                     }
                 }
+            }
+        }
+
+        private void ClipList_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is FrameworkElement el && !(el.DataContext is VideoClip))
+            {
+                _isRectangleSelecting = true;
+                _rectStartPoint = e.GetPosition(SelectionCanvas);
+
+                if (_clipListScrollViewer == null)
+                {
+                    _clipListScrollViewer = GetDescendantByType<ScrollViewer>(ClipList);
+                }
+                _scrollStartOffset = _clipListScrollViewer != null ? _clipListScrollViewer.VerticalOffset : 0;
+
+                if ((System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == 0 &&
+                    (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) == 0)
+                {
+                    ClipList.SelectedItems.Clear();
+                }
+
+                Canvas.SetLeft(SelectionRectangle, _rectStartPoint.X);
+                Canvas.SetTop(SelectionRectangle, _rectStartPoint.Y);
+                SelectionRectangle.Width = 0;
+                SelectionRectangle.Height = 0;
+                SelectionRectangle.Visibility = Visibility.Visible;
+                ClipList.CaptureMouse();
+
+                if (_scrollTimer != null) _scrollTimer.Start();
+            }
+        }
+
+        private T GetDescendantByType<T>(Visual element) where T : Visual
+        {
+            if (element == null) return null;
+            if (element is T) return (T)element;
+            T foundElement = null;
+            if (element is FrameworkElement) (element as FrameworkElement).ApplyTemplate();
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(element); i++)
+            {
+                Visual visual = VisualTreeHelper.GetChild(element, i) as Visual;
+                foundElement = GetDescendantByType<T>(visual);
+                if (foundElement != null) break;
+            }
+            return foundElement;
+        }
+
+        private void ClipList_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (_isRectangleSelecting && e.LeftButton == System.Windows.Input.MouseButtonState.Pressed)
+            {
+                _lastMousePos = e.GetPosition(SelectionCanvas);
+                UpdateSelectionRectangle(_lastMousePos);
+            }
+        }
+
+        private void ScrollTimer_Tick(object sender, EventArgs e)
+        {
+            if (_isRectangleSelecting && _clipListScrollViewer != null)
+            {
+                bool scrolled = false;
+                if (_lastMousePos.Y < 20) 
+                {
+                    _clipListScrollViewer.ScrollToVerticalOffset(_clipListScrollViewer.VerticalOffset - 15);
+                    scrolled = true;
+                }
+                else if (_lastMousePos.Y > SelectionCanvas.ActualHeight - 20) 
+                {
+                    _clipListScrollViewer.ScrollToVerticalOffset(_clipListScrollViewer.VerticalOffset + 15);
+                    scrolled = true;
+                }
+
+                if (scrolled)
+                {
+                    UpdateSelectionRectangle(_lastMousePos);
+                }
+            }
+        }
+
+        private void UpdateSelectionRectangle(System.Windows.Point currentPoint)
+        {
+            double scrollDiff = 0;
+            if (_clipListScrollViewer != null)
+            {
+                scrollDiff = _clipListScrollViewer.VerticalOffset - _scrollStartOffset;
+            }
+
+            double adjustedStartX = _rectStartPoint.X;
+            double adjustedStartY = _rectStartPoint.Y - scrollDiff;
+
+            double x = Math.Min(currentPoint.X, adjustedStartX);
+            double y = Math.Min(currentPoint.Y, adjustedStartY);
+            double width = Math.Max(currentPoint.X, adjustedStartX) - x;
+            double height = Math.Max(currentPoint.Y, adjustedStartY) - y;
+
+            double visY = Math.Max(0, y);
+            double visHeight = Math.Min(SelectionCanvas.ActualHeight - visY, height + (y < 0 ? y : 0));
+
+            Canvas.SetLeft(SelectionRectangle, x);
+            Canvas.SetTop(SelectionRectangle, visY);
+            SelectionRectangle.Width = Math.Max(0, width);
+            SelectionRectangle.Height = Math.Max(0, visHeight);
+
+            Rect selectionRect = new Rect(x, y, width, height);
+
+            for (int i = 0; i < ClipList.Items.Count; i++)
+            {
+                var container = ClipList.ItemContainerGenerator.ContainerFromIndex(i) as UIElement;
+                if (container != null)
+                {
+                    try {
+                        System.Windows.Point containerTopLeft = container.TranslatePoint(new System.Windows.Point(0, 0), SelectionCanvas);
+                        Rect containerRect = new Rect(containerTopLeft, container.RenderSize);
+
+                        if (selectionRect.IntersectsWith(containerRect))
+                        {
+                            if (!ClipList.SelectedItems.Contains(ClipList.Items[i]))
+                            {
+                                ClipList.SelectedItems.Add(ClipList.Items[i]);
+                            }
+                        }
+                        else if ((System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == 0 &&
+                                 (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) == 0)
+                        {
+                            if (ClipList.SelectedItems.Contains(ClipList.Items[i]))
+                            {
+                                ClipList.SelectedItems.Remove(ClipList.Items[i]);
+                            }
+                        }
+                    } catch { }
+                }
+            }
+        }
+
+        private void ClipList_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (_isRectangleSelecting)
+            {
+                _isRectangleSelecting = false;
+                SelectionRectangle.Visibility = Visibility.Collapsed;
+                ClipList.ReleaseMouseCapture();
+                if (_scrollTimer != null) _scrollTimer.Stop();
             }
         }
 

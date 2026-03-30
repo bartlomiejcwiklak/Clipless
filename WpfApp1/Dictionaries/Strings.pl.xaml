@@ -113,4 +113,6 @@
     <system:String x:Key="TxtTrayQuit">Wyjdź</system:String>
     <system:String x:Key="TxtTrayRunning">Działa w tle. Naciśnij {0} aby zapisać klip.</system:String>
     <system:String x:Key="TxtTraySavedTo">Zapisano do</system:String>
+
+    <system:String x:Key="TxtAllClips">Klipy</system:String>
 </ResourceDictionary>

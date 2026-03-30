@@ -112,4 +112,6 @@
     <system:String x:Key="TxtTrayQuit">Quit</system:String>
     <system:String x:Key="TxtTrayRunning">Running in background. Press {0} to save a clip.</system:String>
     <system:String x:Key="TxtTraySavedTo">Saved to</system:String>
+
+    <system:String x:Key="TxtAllClips">Clips</system:String>
 </ResourceDictionary>
