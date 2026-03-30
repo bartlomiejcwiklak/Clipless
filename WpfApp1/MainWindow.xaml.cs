@@ -810,6 +810,8 @@ namespace ClipManager
                     allClipsTag.Name = GetString("TxtAllClips") ?? "Clips";
                 }
 
+                UpdateSizeStatusUI();
+
                 if (GameFolderList.SelectedItem is GameFolder selectedFolder)
                     RefreshCurrentFolder(selectedFolder.FullPath);
                 if (SpecialTagsListBox.SelectedItem is ClipTag st && st.Id == "FAVORITES_SPECIAL_TAG")
@@ -1748,6 +1750,7 @@ namespace ClipManager
                 {
                     TagsListBox_SelectionChanged(null, null);
                 }
+                UpdateSizeStatusUI();
             }));
         }
 
@@ -2527,6 +2530,7 @@ namespace ClipManager
                         if (_currentClips != null) _currentClips.Remove(c);
                         RecentClips.Remove(c);
                     }
+                    UpdateSizeStatusUI();
                 }
             }
         }
@@ -2665,7 +2669,9 @@ namespace ClipManager
                 {
                     Directory.Delete(f.FullPath, true);
                     Clips.Clear();
+                    if (_currentClips != null) _currentClips.Clear();
                     ScanForGameFolders();
+                    UpdateSizeStatusUI();
                 }
                 catch (Exception ex)
                 {
@@ -2961,6 +2967,8 @@ namespace ClipManager
                 Clips.Add(clip);
                 LoadThumbnailAsync(clip);
             }
+
+            UpdateSizeStatusUI();
         }
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -3086,6 +3094,15 @@ namespace ClipManager
         {
             if (e.OriginalSource is FrameworkElement el && !(el.DataContext is VideoClip))
             {
+                // Better ScrollBar detection: search UP the visual tree.
+                var scrollBar = FindVisualParent<System.Windows.Controls.Primitives.ScrollBar>((DependencyObject)e.OriginalSource);
+
+                // If it's a ScrollBar or part of it, ignore rectangle logic.
+                if (scrollBar != null)
+                {
+                    return;
+                }
+
                 _isRectangleSelecting = true;
                 _rectStartPoint = e.GetPosition(SelectionCanvas);
 
@@ -3112,7 +3129,19 @@ namespace ClipManager
             }
         }
 
-        private T GetDescendantByType<T>(Visual element) where T : Visual
+        private T FindVisualParent<T>(DependencyObject element) where T : DependencyObject
+        {
+            while (element != null)
+            {
+                if (element is T t)
+                    return t;
+
+                element = VisualTreeHelper.GetParent(element);
+            }
+            return null;
+        }
+
+        private T GetDescendantByType<T>(DependencyObject element) where T : DependencyObject
         {
             if (element == null) return null;
             if (element is T) return (T)element;
@@ -3120,7 +3149,7 @@ namespace ClipManager
             if (element is FrameworkElement) (element as FrameworkElement).ApplyTemplate();
             for (int i = 0; i < VisualTreeHelper.GetChildrenCount(element); i++)
             {
-                Visual visual = VisualTreeHelper.GetChild(element, i) as Visual;
+                DependencyObject visual = VisualTreeHelper.GetChild(element, i);
                 foundElement = GetDescendantByType<T>(visual);
                 if (foundElement != null) break;
             }
@@ -3515,6 +3544,29 @@ namespace ClipManager
                 }
                 catch { }
             });
+        }
+
+        private string FormatSize(long bytes)
+        {
+            if (bytes >= 1073741824)
+                return $"{bytes / 1073741824.0:F2} GB";
+            if (bytes >= 1048576)
+                return $"{bytes / 1048576.0:F1} MB";
+            if (bytes >= 1024)
+                return $"{bytes / 1024.0:F1} KB";
+            return $"{bytes} B";
+        }
+
+        private void UpdateSizeStatusUI()
+        {
+            Dispatcher.BeginInvoke(new Action(() => {
+                if (TxtSizeStatus != null) {
+                    string currentStr = GetString("TxtCurrentFolderSize") ?? "current folder clips size";
+                    long currentSize = _currentClips?.Sum(c => c.ActualFileSize) ?? 0;
+
+                    TxtSizeStatus.Text = $"{currentStr}: {FormatSize(currentSize)}";
+                }
+            }));
         }
     }
 

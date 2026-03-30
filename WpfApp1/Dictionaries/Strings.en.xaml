@@ -114,4 +114,6 @@
     <system:String x:Key="TxtTraySavedTo">Saved to</system:String>
 
     <system:String x:Key="TxtAllClips">Clips</system:String>
+    <system:String x:Key="TxtTotalClipsSize">Total clips size</system:String>
+    <system:String x:Key="TxtCurrentFolderSize">Current folder clips size</system:String>
 </ResourceDictionary>

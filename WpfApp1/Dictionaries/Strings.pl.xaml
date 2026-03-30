@@ -115,4 +115,6 @@
     <system:String x:Key="TxtTraySavedTo">Zapisano do</system:String>
 
     <system:String x:Key="TxtAllClips">Klipy</system:String>
+    <system:String x:Key="TxtTotalClipsSize">Całkowity rozmiar klipów</system:String>
+    <system:String x:Key="TxtCurrentFolderSize">Rozmiar klipów w obecnym folderze</system:String>
 </ResourceDictionary>
