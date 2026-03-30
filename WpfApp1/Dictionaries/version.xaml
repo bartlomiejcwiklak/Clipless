@@ -1,5 +1,5 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:s="clr-namespace:System;assembly=mscorlib">
-    <s:String x:Key="TxtVersionInfo">version RC-5 build 3/30/26 3:58 am</s:String>
+    <s:String x:Key="TxtVersionInfo">version RC-5 build 3/30/26 12:23 pm</s:String>
 </ResourceDictionary>

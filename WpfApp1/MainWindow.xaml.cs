@@ -2882,6 +2882,7 @@ namespace ClipManager
             object sender, SizeChangedEventArgs e) => UpdateBracketsUI();
         private void BtnSettings_Click(object sender, RoutedEventArgs e)
         {
+            LoadAudioDevices();
             SettingsOverlay.Visibility = Visibility.Visible;
             VideoPlayer.Visibility = Visibility.Hidden;
         }
