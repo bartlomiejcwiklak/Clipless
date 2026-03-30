@@ -200,13 +200,25 @@ namespace ClipManager
             SpecialTagsListBox.SelectedIndex = 0;
 
             InitTrayIcon();
-            StartBackgroundRecorder();
 
             if (Environment.GetCommandLineArgs().Contains("-autostart"))
             {
                 this.WindowState = WindowState.Minimized;
                 this.ShowInTaskbar = false;
-                this.Loaded += (s, e) => { this.Visibility = Visibility.Hidden; };
+                this.Loaded += (s, e) => { 
+                    this.Visibility = Visibility.Hidden; 
+                    if (_recordEnabled)
+                    {
+                        StartBackgroundRecorder();
+                    }
+                };
+            }
+            else
+            {
+                if (_recordEnabled)
+                {
+                    StartBackgroundRecorder();
+                }
             }
         }
 
@@ -758,8 +770,14 @@ namespace ClipManager
                     Source =
                       new Uri($"Dictionaries/Strings.{langCode}.xaml", UriKind.Relative)
                 };
+                var versionDict = new ResourceDictionary
+                {
+                    Source =
+                      new Uri("Dictionaries/version.xaml", UriKind.Relative)
+                };
                 this.Resources.MergedDictionaries.Clear();
                 this.Resources.MergedDictionaries.Add(dict);
+                this.Resources.MergedDictionaries.Add(versionDict);
 
                 var favTag = SpecialTagsList.FirstOrDefault(t => t.Id == "FAVORITES_SPECIAL_TAG");
                 if (favTag != null)

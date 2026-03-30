@@ -14,6 +14,7 @@
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Dictionaries/Strings.en.xaml" />
+                <ResourceDictionary Source="Dictionaries/version.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </ui:FluentWindow.Resources>
@@ -249,6 +250,7 @@
 
                 <StackPanel Grid.Row="1" x:Name="TxtNoFolderMessage" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Visible">
                     <Image Source="logo.png" MaxWidth="300" MaxHeight="300" Margin="0,0,0,15" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <TextBlock Text="{DynamicResource TxtVersionInfo}" Foreground="Gray" FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,5"/>
                     <TextBlock Text="{DynamicResource TxtNoFolderSelected}" Foreground="Gray" FontSize="16" HorizontalAlignment="Center" Margin="0,0,0,20"/>
                     <TextBlock x:Name="TxtRecentClipsTitle" Text="{DynamicResource TxtRecentClips}" Foreground="White" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Visibility="Collapsed" Margin="0,0,0,10"/>
                     <ListBox x:Name="RecentClipsList" Background="Transparent" BorderThickness="0" Margin="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="ClipList_MouseDoubleClick" Visibility="Collapsed" ItemTemplate="{StaticResource ClipItemTemplate}" SelectionMode="Extended">
