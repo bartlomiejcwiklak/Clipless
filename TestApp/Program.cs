@@ -1,1 +1,0 @@
-using System; using Xabe.FFmpeg; class C { static void Main() { var conv = FFmpeg.Conversions.New().AddParameter($" -ss 00:00:10\).AddParameter($\-i in.mp4\).SetOutputTime(TimeSpan.FromSeconds(5)).SetOutput(\out.mp4\); Console.WriteLine(conv.Build()); } }
